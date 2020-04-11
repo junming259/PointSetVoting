@@ -2,7 +2,7 @@ __Point Clouds Completion__
 ===
 
 ![](figures/sample.png)
-+ Green points are ground truth; red points are observed points; blue points are predicted points.
++ Green points are ground truth; red points are observed points; blue points are predicted points based on all observed points; pink points are predicted points based on fewer observed points.
 
 ### Previous related works:
 - [PointNet](https://arxiv.org/pdf/1612.00593.pdf)
