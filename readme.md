@@ -1,6 +1,15 @@
 __Point Clouds Completion__
 ===
 
+![](figures/sample.png)
++ Green points are ground truth; red points are observed points; blue points are predicted points.
+
+### Previous related works:
+- [PointNet](https://arxiv.org/pdf/1612.00593.pdf)
+- [PointNet++](https://arxiv.org/pdf/1706.02413.pdf)
+- [FoldingNet](https://arxiv.org/pdf/1712.07262.pdf)
+- [PCN](https://arxiv.org/pdf/1808.00671.pdf)
+
 ### Requirements
 - Python 3.5
 - Pytorch:1.4.0
