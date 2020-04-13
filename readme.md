@@ -9,7 +9,6 @@ __Point Clouds Completion__
 - [PointNet++](https://arxiv.org/pdf/1706.02413.pdf)
 - [FoldingNet](https://arxiv.org/pdf/1712.07262.pdf)
 - [PCN](https://arxiv.org/pdf/1808.00671.pdf)
-- [completion3D benchmark](https://completion3d.stanford.edu/)
 
 ### Requirements
 - Python 3.5
@@ -22,6 +21,8 @@ __Point Clouds Completion__
 ### Dataset
 Manually download dataset and save to `data_root/`:  [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M).
 Or when running training file, it will automatically download the dataset.
+
+To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/)
 
 ### Build docker image
 For those who are familiar with docker, our code is containterized. Build docker image:
@@ -45,7 +46,7 @@ $ CUDA_VISIBLE_DEVICES=0 python3 main.py \
 --lr 0.0002 \
 --step_size 250 \
 --max_epoch 600 \
---bsize 7 \
+--bsize 8 \
 --num_sub_feats 16 \
 --is_subReg
 ```
