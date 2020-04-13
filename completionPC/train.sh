@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='6'"' \
+  --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/completionPC/cpc \
   -v $(pwd)/../data:/completionPC/data \
@@ -9,11 +9,13 @@ docker run -it --rm \
   -w /completionPC/cpc \
   completion-pc \
   python main.py \
-  --model_name cpc_b7e600s250lr2e-4_r02sub16_bndec \
+  --model_name cpc \
+  --category Chair \
   --num_pts 2048 \
   --lr 0.0002 \
   --step_size 250 \
   --max_epoch 600 \
-  --bsize 7 \
+  --bsize 8 \
   --num_sub_feats 16 \
-  --is_subReg
+  --is_subReg \
+  --randRotY

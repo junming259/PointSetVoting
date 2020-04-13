@@ -50,7 +50,7 @@ def train_one_epoch(loader, epoch, check_dir):
         # training
         model.zero_grad()
         generated_pc, sub_pc_reg = model(None, pos, batch)
-        loss_chf = chamfer_loss(generated_pc, pos.view(-1, a.num_pts, 3))
+        loss_chf = chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3))
         loss = loss_chf + sub_pc_reg
         loss.backward()
         optimizer.step()
@@ -83,7 +83,7 @@ def test(loader, epoch, check_dir):
             generated_pc, _ = model(None, pos_partial, batch_partial)
             pred_latent_pos = model.generate_pc_from_latent(model.selected_mean[0, 0, :].view(1, 512))
             pos_partial = model.partial_pc
-        total_chamfer_loss.append(chamfer_loss(generated_pc, pos.view(-1, a.num_pts, 3)))
+        total_chamfer_loss.append(chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)))
 
         # save sample results
         if j == len(loader)-1:
@@ -92,7 +92,7 @@ def test(loader, epoch, check_dir):
             pred_pos = generated_pc.cpu().detach().numpy()
             pred_latent_pos = pred_latent_pos.cpu().detach().numpy()
 
-            np.save(os.path.join(check_dir, 'pos_{}'.format(epoch)), pos.reshape(-1, a.num_pts, 3)[0])
+            np.save(os.path.join(check_dir, 'pos_{}'.format(epoch)), pos.reshape(-1, args.num_pts, 3)[0])
             np.save(os.path.join(check_dir, 'pos_partial_{}'.format(epoch)), pos_partial)
             np.save(os.path.join(check_dir, 'pred_pos_{}'.format(epoch)), pred_pos[0])
             np.save(os.path.join(check_dir, 'pred_latent_pos_{}'.format(epoch)), pred_latent_pos)
@@ -112,7 +112,7 @@ def create_partial_pc(pos, batch, num, npts):
     '''
     bsize = batch.max() + 1
     pos = pos.view(bsize, -1, 3)
-    batch = batch.view(-1, a.num_pts)
+    batch = batch.view(-1, args.num_pts)
     pc, bh = [], []
     for i in range(pos.size(0)):
         p, b = pos[i], batch[i]
@@ -136,7 +136,7 @@ def create_partial_pc(pos, batch, num, npts):
 #     '''
 #     bsize = batch.max() + 1
 #     pos = pos.view(bsize, -1, 3)
-#     batch = batch.view(-1, a.num_pts)
+#     batch = batch.view(-1, args.num_pts)
 #     pc, bh = [], []
 #     for i in range(pos.size(0)):
 #         p, b = pos[i], batch[i]
@@ -207,31 +207,32 @@ if __name__ == '__main__':
     parser.add_argument("--is_subReg", action='store_true', help="flag for sub point clouds regularization")
     parser.add_argument("--randRotY", action='store_true', help="flag for random rotation along Y axis")
 
-    a = parser.parse_args()
+    args = parser.parse_args()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     category = 'Chair'
-    pre_transform, transform = T.NormalizeScale(), T.FixedPoints(a.num_pts)
+    pre_transform = T.NormalizeScale()
+    transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
     train_dataset = ShapeNet('../data_root/ShapeNet_normal', category, split='trainval',
                              include_normals=False, pre_transform=pre_transform, transform=transform)
     test_dataset = ShapeNet('../data_root/ShapeNet_normal', category, split='test',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
-    train_dataloader = DataLoader(train_dataset, batch_size=a.bsize, shuffle=True,
+    train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                   num_workers=6, drop_last=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=a.bsize, shuffle=True,
+    test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
                                  num_workers=6)
 
-    model = Model(num_sub_feats=a.num_sub_feats, is_subReg=a.is_subReg)
+    model = Model(num_sub_feats=args.num_sub_feats, is_subReg=args.is_subReg)
     # to do: using multiple GPUs
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = torch.nn.DataParallel(model)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=a.lr, betas=(0.9, 0.999))
-    scheduler = StepLR(optimizer, step_size=a.step_size, gamma=0.2)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999))
+    scheduler = StepLR(optimizer, step_size=args.step_size, gamma=0.2)
 
-    model_name = a.model_name
+    model_name = args.model_name
     check_dir = 'checkpoint/{}'.format(model_name)
     if not os.path.exists('checkpoint/{}'.format(model_name)):
         os.makedirs('checkpoint/{}'.format(model_name))
@@ -248,7 +249,7 @@ if __name__ == '__main__':
 
     # with GuruMeditation():
     # with torch.autograd.detect_anomaly():
-    for epoch in range(1, a.max_epoch+1):
+    for epoch in range(1, args.max_epoch+1):
 
         # do training
         train_one_epoch(train_dataloader, epoch, check_dir)
