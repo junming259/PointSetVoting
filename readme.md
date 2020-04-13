@@ -2,20 +2,22 @@ __Point Clouds Completion__
 ===
 
 ![](figures/sample.png)
-+ Green points are ground truth; red points are observed points; blue points are predicted points based on all observed points; pink points are predicted points based on fewer observed points.
++ Green points are ground truth; red points are observed points; blue points are predicted points based on all observed points; pink points are predicted points based on single sub point clouds.
 
 ### Previous related works:
 - [PointNet](https://arxiv.org/pdf/1612.00593.pdf)
 - [PointNet++](https://arxiv.org/pdf/1706.02413.pdf)
 - [FoldingNet](https://arxiv.org/pdf/1712.07262.pdf)
 - [PCN](https://arxiv.org/pdf/1808.00671.pdf)
+- [completion3D benchmark](https://completion3d.stanford.edu/)
 
 ### Requirements
 - Python 3.5
 - Pytorch:1.4.0
 - [PyTorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 - CUDA 10.1
-- Tensorflow 1.14.0 (optional for visulaization)
+- Tensorflow 1.14.0 (optional for visulaization during training)
+- open3D (optional for visulaization of point clouds)
 
 ### Dataset
 Manually download dataset and save to `data_root/`:  [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M).
