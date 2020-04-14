@@ -197,7 +197,9 @@ def halt(msg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model', help="model name")
-    parser.add_argument("--category", default='Chair', help="point clouds category")
+    parser.add_argument("--categories", default='Chair', help="point clouds categories, string or [string]. \
+                        Airplane, Bag, Cap, Car, Chair, Earphone, Guitar, Knife, Lamp, Laptop, Motorbike, \
+                        Mug, Pistol, Rocket, Skateboard, Table")
     parser.add_argument("--num_pts", type=int, help="number of sampled points")
     parser.add_argument("--bsize", type=int, default=32, help="batch size")
     parser.add_argument("--max_epoch", type=int, default=250, help="max epoch to train")
@@ -210,12 +212,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    category = 'Chair'
+    categories = args.categories.split(',')
     pre_transform = T.NormalizeScale()
     transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
-    train_dataset = ShapeNet('../data_root/ShapeNet_normal', category, split='trainval',
+    train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval',
                              include_normals=False, pre_transform=pre_transform, transform=transform)
-    test_dataset = ShapeNet('../data_root/ShapeNet_normal', category, split='test',
+    test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
     train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                   num_workers=6, drop_last=True)
