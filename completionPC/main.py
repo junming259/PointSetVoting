@@ -6,15 +6,7 @@ import torch.nn.functional as F
 import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
-import pdb
-import traceback
-import colorama
-from colorama import Fore, Back, Style
-from torch import autograd
-
-
 from itertools import chain
-from data import data_utils as d_utils
 from utils.logger import Logger
 from torch.autograd import grad
 from utils.models import Model
@@ -49,9 +41,9 @@ def train_one_epoch(loader, epoch, check_dir):
 
         # training
         model.zero_grad()
-        generated_pc, sub_pc_reg = model(None, pos, batch)
+        generated_pc, fidelity = model(None, pos, batch)
         loss_chf = chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3))
-        loss = loss_chf + sub_pc_reg
+        loss = loss_chf + fidelity
         loss.backward()
         optimizer.step()
 
@@ -59,13 +51,11 @@ def train_one_epoch(loader, epoch, check_dir):
 
         # write summary
         if i % 100 == 0:
-            # print('Training, Chamfer_loss: {:.5f}, Loss_d: {:.4f}, Loss_e: {:.4f}'.format(loss_g, loss_d, loss_e))
             # print('Training, Chamfer_loss: {:.5f}'.format(loss))
-            print('Train, chamfer_loss: {:.5f}, sub_Reg: {:.4f}'.format(loss_chf, sub_pc_reg))
+            print('Train, chamfer_loss: {:.5f}, fidelity: {:.4f}'.format(loss_chf, fidelity))
             logger.scalar_summary('loss_chamfer', loss_chf, i)
-            logger.scalar_summary('loss_sub_reg', sub_pc_reg, i)
+            logger.scalar_summary('loss_fidelity', fidelity, i)
             logger.scalar_summary('lr', get_lr(optimizer), i)
-
         i = i + 1
 
 
@@ -76,38 +66,39 @@ def test(loader, epoch, check_dir):
     for j, data in enumerate(loader, 0):
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
-        # pos_partial, batch_partial = create_partial_pc(pos, batch, 1, 1200)
-        pos_partial, batch_partial = pos, batch
+        pos_observed, batch_observed = create_partial_pc(pos, batch, 1024)
+        # pos_partial, batch_partial = pos, batch
 
         with torch.no_grad():
-            generated_pc, _ = model(None, pos_partial, batch_partial)
-            pred_latent_pos = model.generate_pc_from_latent(model.selected_mean[0, 0, :].view(1, 512))
-            pos_partial = model.partial_pc
+            generated_pc, _ = model(None, pos_observed, batch_observed)
+            generated_latent_pc = model.generate_pc_from_latent(model.contribution_mean[0, 0, :].view(1, -1))
+            contribution_pc = model.contribution_pc
         total_chamfer_loss.append(chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)))
 
-        # save sample results
+        # save the first sample results for visualization
         if j == len(loader)-1:
-            pos = pos.cpu().detach().numpy()
-            pos_partial = pos_partial.cpu().detach().numpy()
-            pred_pos = generated_pc.cpu().detach().numpy()
-            pred_latent_pos = pred_latent_pos.cpu().detach().numpy()
+            pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, 1024, 3)[0]
+            contribution_pc = contribution_pc.cpu().detach().numpy()
+            generated_pc = generated_pc.cpu().detach().numpy()[0]
+            generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
 
-            np.save(os.path.join(check_dir, 'pos_{}'.format(epoch)), pos.reshape(-1, args.num_pts, 3)[0])
-            np.save(os.path.join(check_dir, 'pos_partial_{}'.format(epoch)), pos_partial)
-            np.save(os.path.join(check_dir, 'pred_pos_{}'.format(epoch)), pred_pos[0])
-            np.save(os.path.join(check_dir, 'pred_latent_pos_{}'.format(epoch)), pred_latent_pos)
+            np.save(os.path.join(check_dir, 'pos_{}'.format(epoch)), pos)
+            np.save(os.path.join(check_dir, 'pos_observed_{}'.format(epoch)), pos_observed)
+            np.save(os.path.join(check_dir, 'contribution_pc_{}'.format(epoch)), contribution_pc)
+            np.save(os.path.join(check_dir, 'generated_pc_{}'.format(epoch)), generated_pc)
+            np.save(os.path.join(check_dir, 'generated_latent_pc_{}'.format(epoch)), generated_latent_pc)
 
     avg_chamfer_loss = sum(total_chamfer_loss) / len(total_chamfer_loss)
     logger.scalar_summary('test_chamfer_dist', avg_chamfer_loss, epoch)
     print('Epoch: {:03d}, eval_loss: {:.5f}\n'.format(epoch, avg_chamfer_loss))
 
 
-def create_partial_pc(pos, batch, num, npts):
+def create_partial_pc(pos, batch, npts):
     '''
-    Create sythetic partial point clouds.
+    Create sythetic partial point clouds. Only left half point clouds are preserved.
     pos: [N, 3]
     batch: [N]
-    num: the number of sub point clouds
     npts: the number of points in each sub point clouds
     '''
     bsize = batch.max() + 1
@@ -116,15 +107,42 @@ def create_partial_pc(pos, batch, num, npts):
     pc, bh = [], []
     for i in range(pos.size(0)):
         p, b = pos[i], batch[i]
-        idx = np.random.choice(pos.size(1), num, False)
-        y_idx, x_idx = knn(p, p[idx], npts)
-        p_partial = p[x_idx]
-        b_partial = b[:p_partial.size(0)]
-        pc.append(p_partial)
-        bh.append(b_partial)
+        mask = p[:, 2] > 0
+        p = p[mask]
+        b = b[mask]
+        idx = np.random.choice(p.size(0), npts, True)
+        p = p[idx]
+        b = b[idx]
+        pc.append(p)
+        bh.append(b)
     partial_pos = torch.cat(pc, dim=0)
     partial_batch = torch.cat(bh, dim=0)
     return partial_pos, partial_batch
+
+
+# def create_partial_pc(pos, batch, num, npts):
+#     '''
+#     Create sythetic partial point clouds.
+#     pos: [N, 3]
+#     batch: [N]
+#     num: the number of sub point clouds
+#     npts: the number of points in each sub point clouds
+#     '''
+#     bsize = batch.max() + 1
+#     pos = pos.view(bsize, -1, 3)
+#     batch = batch.view(-1, args.num_pts)
+#     pc, bh = [], []
+#     for i in range(pos.size(0)):
+#         p, b = pos[i], batch[i]
+#         idx = np.random.choice(pos.size(1), num, False)
+#         y_idx, x_idx = knn(p, p[idx], npts)
+#         p_partial = p[x_idx]
+#         b_partial = b[:p_partial.size(0)]
+#         pc.append(p_partial)
+#         bh.append(b_partial)
+#     partial_pos = torch.cat(pc, dim=0)
+#     partial_batch = torch.cat(bh, dim=0)
+#     return partial_pos, partial_batch
 
 
 # def create_partial_pc(pos, batch, num, npts):
@@ -171,29 +189,6 @@ def backup(log_dir, parser):
     file.close()
 
 
-colorama.init()
-class GuruMeditation(autograd.detect_anomaly):
-    def __init__(self):
-        super(GuruMeditation, self).__init__()
-    def __enter__(self):
-        super(GuruMeditation, self).__enter__()
-        return self
-    def __exit__(self, type, value, trace):
-        super(GuruMeditation, self).__exit__()
-        if isinstance(value, RuntimeError):
-            traceback.print_tb(trace)
-            halt(str(value))
-
-def halt(msg):
-    print (Fore.RED + "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
-    print (Fore.RED + "┃ Software Failure. Press left mouse button to continue ┃")
-    print (Fore.RED + "┃        Guru Meditation 00000004, 0000AAC0             ┃")
-    print (Fore.RED + "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
-    print(Style.RESET_ALL)
-    print (msg)
-    pdb.set_trace()
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model', help="model name")
@@ -201,12 +196,14 @@ if __name__ == '__main__':
                         Airplane, Bag, Cap, Car, Chair, Earphone, Guitar, Knife, Lamp, Laptop, Motorbike, \
                         Mug, Pistol, Rocket, Skateboard, Table")
     parser.add_argument("--num_pts", type=int, help="number of sampled points")
-    parser.add_argument("--bsize", type=int, default=32, help="batch size")
+    parser.add_argument("--bsize", type=int, default=8, help="batch size")
     parser.add_argument("--max_epoch", type=int, default=250, help="max epoch to train")
-    parser.add_argument("--lr", type=float, default=0.001, help="batch size")
+    parser.add_argument("--lr", type=float, default=0.0001, help="batch size")
     parser.add_argument("--step_size", type=int, default=300, help="step size to reduce lr")
-    parser.add_argument("--num_sub_feats", type=int, help="number of features during test")
-    parser.add_argument("--is_subReg", action='store_true', help="flag for sub point clouds regularization")
+    parser.add_argument("--num_subpc_train", type=int, help="the number of sub point clouds sampled during training")
+    parser.add_argument("--num_subpc_test", type=int, help="the number of sub point clouds sampled during test")
+    parser.add_argument("--num_contri_feats", type=int, help="the number of contribution features during test")
+    parser.add_argument("--is_fidReg", action='store_true', help="flag for fidelity regularization during training")
     parser.add_argument("--randRotY", action='store_true', help="flag for random rotation along Y axis")
 
     args = parser.parse_args()
@@ -214,7 +211,10 @@ if __name__ == '__main__':
 
     categories = args.categories.split(',')
     pre_transform = T.NormalizeScale()
-    transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+    if args.randRotY:
+        transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+    else:
+        transform = T.FixedPoints(args.num_pts)
     train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval',
                              include_normals=False, pre_transform=pre_transform, transform=transform)
     test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test',
@@ -224,7 +224,10 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
                                  num_workers=6)
 
-    model = Model(num_sub_feats=args.num_sub_feats, is_subReg=args.is_subReg)
+    model = Model(num_subpc_train=args.num_subpc_train,
+                  num_subpc_test=args.num_subpc_test,
+                  num_contri_feats=args.num_contri_feats,
+                  is_fidReg=args.is_fidReg)
     # to do: using multiple GPUs
     # if torch.cuda.device_count() > 1:
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")

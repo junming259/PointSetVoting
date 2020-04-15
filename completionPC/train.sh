@@ -10,12 +10,14 @@ docker run -it --rm \
   completion-pc \
   python main.py \
   --model_name cpc \
-  --category Chair \
+  --categories Chair \
   --num_pts 2048 \
-  --lr 0.0002 \
-  --step_size 250 \
-  --max_epoch 600 \
+  --lr 0.0001 \
+  --step_size 200 \
+  --max_epoch 500 \
   --bsize 8 \
-  --num_sub_feats 16 \
-  --is_subReg \
-  --randRotY
+  --num_subpc_train 64 \
+  --num_subpc_test 16 \
+  --num_contri_feats 16 \
+  --is_fidReg
+  # --randRotY

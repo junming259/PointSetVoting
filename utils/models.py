@@ -8,54 +8,60 @@ from .model_utils import FCBlock, mlp
 
 
 class Model(torch.nn.Module):
-    def __init__(self, num_sub_feats, is_subReg=True):
+    def __init__(self, num_subpc_train, num_subpc_test, num_contri_feats, is_fidReg=True):
         super(Model, self).__init__()
-        self.num_sub_feats = num_sub_feats
-        self.is_subReg = is_subReg
-        self.encoder = Encoder()
+        self.num_contri_feats = num_contri_feats
+        self.is_fidReg = is_fidReg
+        self.encoder = Encoder(num_subpc_train, num_subpc_test)
         self.latent_module = LatentModule()
         self.decoder = Decoder()
 
     def forward(self, x=None, pos=None, batch=None):
         bsize = batch.max() + 1
-        sub_pc_reg = 0
+        fidelity = 0
 
         # extract feature for each sub point clouds
         mean, std, x_idx, y_idx = self.encoder(x, pos, batch)
-        self.mean, self.std = mean, std
 
-        # random selection
-        selected_mean, selected_std, mapping = self.feature_selection(mean, std, bsize, self.num_sub_feats)
-        self.selected_mean, self.selected_std = selected_mean, selected_std
+        # contribution feature selection
+        contribution_mean, contribution_std, mapping = self.feature_selection(mean, std, bsize, self.num_contri_feats)
+        self.contribution_mean, self.contribution_std = contribution_mean, contribution_std
 
-        # latent feature
-        optimal_z = self.latent_module(selected_mean, selected_std)
+        # compute optimal latent feature
+        optimal_z = self.latent_module(contribution_mean, contribution_std)
 
         # generate point clouds from latent feature
         generated_pc = self.decoder(optimal_z)
 
+        # maskout contribution points from input points
         mask = []
         for item in mapping.keys():
             mask.append(y_idx==item)
         mask = torch.stack(mask, dim=-1).any(dim=-1)
-        partial_pos = pos[x_idx[mask]]
-        partial_batch = batch[x_idx[mask]]
+        contribution_pos = pos[x_idx[mask]]
+        contribution_batch = batch[x_idx[mask]]
 
-        if self.training and self.is_subReg:
-            # during training, generate point clouds from each latent feature
+        if self.training and self.is_fidReg:
+            # during training reduce fidelity, which is the average distance from
+            # each point in the input to its nearest neighbour in the output. This
+            # measures how well the input is preserved.
             masked_y_idx = y_idx[mask].detach().cpu().numpy()
             mapped_masked_y_idx = list(map(lambda x: mapping[x], masked_y_idx))
 
-            latent_pcs = self.decoder(selected_mean.view(-1, selected_mean.size(2)))
-            diff = partial_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
+            # generate point clouds from each contribution latent feature
+            latent_pcs = self.decoder(contribution_mean.view(-1, contribution_mean.size(2)))
+
+            # compute fidelity
+            diff = contribution_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
             min_dist = diff.norm(dim=-1).min(dim=1)[0]
-            partial_chamfer_dist = scatter_('mean', min_dist, y_idx[mask])
-            sub_pc_reg = torch.mean(partial_chamfer_dist)
+            fidelity = scatter_('mean', min_dist, y_idx[mask])
+            fidelity = torch.mean(fidelity)
 
         if not self.training:
-            self.partial_pc = partial_pos[partial_batch==0]     # select the first point clouds
+            # select the first contribution point clouds for visualization
+            self.contribution_pc = contribution_pos[contribution_batch==0]
 
-        return generated_pc, sub_pc_reg
+        return generated_pc, fidelity
 
     def generate_pc_from_latent(self, x):
         '''
@@ -69,35 +75,66 @@ class Model(torch.nn.Module):
 
     def feature_selection(self, mean, std, bsize, num_feats):
         '''
-        mean: computed mean for each sub point cloud
-        std: computed std for each sub point cloud
-        bsize: batch size
-        num_feats: number of candidate features comtributing to final latent features
+        Not all features generated from sub point clouds will be considered during
+        computation. During training, random feature selection is adapted. During
+        test, features with top probability will be contributed to calculate optimal
+        latent feature.
+
+        Arguments:
+            mean: [-1, f], computed mean for each sub point cloud
+            std: [-1, f], computed std for each sub point cloud
+            bsize: int, batch size
+            num_feats: int, number of candidate features comtributing to final latent
+                       features during test
+
+        Returns:
+            new_mean: [bsize, k, f], selected contribution means
+            new_std: bsize, k, f], selected contribution std
+            mapping: dict,
         '''
         mean = mean.view(bsize, -1, mean.size(1))
         std = std.view(bsize, -1, std.size(1))
 
-        # feature random selection
         if self.training:
+            # feature random selection
             num_feats = np.random.choice(np.arange(1, mean.size(1)//2), 1, False)
+            idx = np.random.choice(mean.size(1), num_feats, False)
+            new_mean = mean[:, idx, :]
+            new_std = std[:, idx, :]
 
-        idx = np.random.choice(mean.size(1), num_feats, False)
-        new_mean = mean[:, idx, :]
-        new_std = std[:, idx, :]
+            # build a mapping
+            source_idx = torch.arange(mean.size(0)*mean.size(1))
+            target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
+            source_idx = source_idx.view(bsize, -1)[:, idx].view(-1)
+            mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
-        # build a mapping function
-        source_idx = torch.arange(mean.size(0)*mean.size(1)).to(mean.device)
-        target_idx = torch.arange(new_mean.size(0)*new_mean.size(1)).to(new_mean.device)
-        source_idx = source_idx.view(bsize, -1)[:, idx].view(-1)
-        mapping = dict(zip(source_idx.detach().cpu().numpy(), target_idx.detach().cpu().numpy()))
+        else:
+            # compute probability of each sub mean feature in other else distribution
+            diff = mean.unsqueeze(2) - mean.unsqueeze(1)
+            expanded_std = std.unsqueeze(1).expand(-1, std.size(1), -1, -1)
+            prob = -torch.log(expanded_std) - 0.5*torch.pow(diff/expanded_std, 2)      # [bsize, k, k, 512]
+            prob = prob.sum(dim=-1).sum(dim=-1)     # [bsize, k]
+
+            # choose features with top probability
+            sorted, indices = prob.sort(dim=1, descending=True)
+            top_indices = indices[:, :num_feats]
+            expanded_top_indices = top_indices.unsqueeze(-1).expand(-1, -1, mean.size(-1))     # [bsize, num, 512]
+            new_mean = torch.gather(mean, dim=1, index=expanded_top_indices)
+            new_std = torch.gather(std, dim=1, index=expanded_top_indices)
+
+            # build a mapping
+            source_idx = torch.arange(indices.numel()).view(bsize, -1)
+            target_idx = torch.arange(top_indices.numel())
+            source_idx = torch.gather(source_idx, 1, top_indices.cpu()).view(-1)
+            mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
         return new_mean, new_std, mapping
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, num_subpc_train, num_subpc_test):
         super(Encoder, self).__init__()
-        self.sa_module = SAModule(0.2, 64/2048, mlp([3, 64, 128, 512], leaky=True))
+        self.sa_module = SAModule(0.2, num_subpc_train, num_subpc_test, mlp([3, 64, 128, 512], leaky=True))
         self.mlp = mlp([512+3, 512, 512*2], last=True, leaky=True)
 
     def reparameterize(self, mean, std):
@@ -107,20 +144,33 @@ class Encoder(torch.nn.Module):
     def forward(self, x, pos, batch):
         x, new_pos, new_batch, x_idx, y_idx = self.sa_module(x, pos, batch)
         x = self.mlp(torch.cat([x, new_pos], dim=-1))
-        mean, logvar = torch.split(x, x.size(-1)//2, dim=-1)
+        mean, logvar = torch.chunk(x, 2, dim=-1)
         std = torch.exp(0.5*logvar)
         return mean, std, x_idx, y_idx
 
 
 class SAModule(torch.nn.Module):
-    def __init__(self, r, ratio, nn):
+    def __init__(self, r, num_distPoint_train, num_distPoint_test, nn):
+        '''
+        Set abstraction module, which is proposed by Pointnet++.
+        r: ball query radius
+        num_distPoint_train: the number of selected distant points in further
+                             points sampling (fps) during training.
+        num_distPoint_test: the number of selected distant points in FPS during test.
+        nn: mlp.
+        '''
         super(SAModule, self).__init__()
         self.r = r
-        self.ratio = ratio
+        self.num_distPoint_train = num_distPoint_train
+        self.num_distPoint_test = num_distPoint_test
         self.conv = PointConv(nn)
 
     def forward(self, x, pos, batch):
-        idx = fps(pos, batch, ratio=self.ratio)
+        if self.training:
+            ratio = self.num_distPoint_train/2048
+        else:
+            ratio = self.num_distPoint_test/1024
+        idx = fps(pos, batch, ratio=ratio)
         # ball query searches neighbors
         y_idx, x_idx = radius(pos, pos[idx], self.r, batch, batch[idx],
                           max_num_neighbors=128)
