@@ -1,8 +1,8 @@
 __Point Clouds Completion__
 ===
 
-![](figures/sample.png)
-+ Green points are ground truth; red points are observed points; blue points are predicted points based on all observed points; pink points are predicted points based on single sub point clouds.
+![](figures/sample_results.jpg)
++ Green points are ground truth; blue points are observed points; red points are predicted points based on all observed points; pink points are predicted points based on one set of contribution points.
 
 ### Previous related works:
 - [PointNet](https://arxiv.org/pdf/1612.00593.pdf)
@@ -37,24 +37,17 @@ $ cd completionPC/
 $ bash train.sh
 ```
 
-Without docker image, train the model by running:
-```
-$ cd completionPC/
-$ CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_name cpc \
---num_pts 2048 \
---lr 0.0002 \
---step_size 250 \
---max_epoch 600 \
---bsize 8 \
---num_sub_feats 16 \
---is_subReg
-```
-
-Given the already built docker image, visualize the training process by running:
+and visualize the training process by running:
 ```
 $ cd completionPC/
 $ bash tensorboard.sh
+```
+
+### Visualization
+Visulize sample results:
+```
+$ cd visulaization/
+$ python3 visualize_results_pro.py
 ```
 
 ### Evaluation
