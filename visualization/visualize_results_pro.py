@@ -3,7 +3,7 @@ import numpy as np
 import open3d as o3d
 
 
-idx = '599'
+idx = '589'
 folder = 'cpc_b8e600s250lr2e-4_r02sub16-16_chair_randHalf'
 
 
@@ -72,7 +72,7 @@ print('Number of contribution points: {}'.format(np.unique(points4, axis=0).shap
 
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(points0)
-pcd.colors = o3d.utility.Vector3dVector([[0, 0, 1] for i in range(len(points0))])
+pcd.colors = o3d.utility.Vector3dVector([[1, 0, 1] for i in range(len(points0))])
 o3d.io.write_point_cloud("points0.ply", pcd)
 
 pcd = o3d.geometry.PointCloud()
@@ -87,12 +87,12 @@ o3d.io.write_point_cloud("points2.ply", pcd)
 
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(points3)
-pcd.colors = o3d.utility.Vector3dVector([[1, 0, 1] for i in range(len(points3))])
+pcd.colors = o3d.utility.Vector3dVector([[0, 0, 1] for i in range(len(points3))])
 o3d.io.write_point_cloud("points3.ply", pcd)
 
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(points4)
-pcd.colors = o3d.utility.Vector3dVector([[1, 0.5, 1] for i in range(len(points4))])
+pcd.colors = o3d.utility.Vector3dVector([[0, 0, 1] for i in range(len(points4))])
 o3d.io.write_point_cloud("points4.ply", pcd)
 
 
