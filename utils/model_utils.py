@@ -9,36 +9,6 @@ from torch_geometric.utils import scatter_
 from torch_scatter import scatter_add, scatter_min, scatter_max
 
 
-class FCBlock(torch.nn.Module):
-    def __init__(self, chs):
-        """
-        Fully connected layers with batchnorm and relu every layer afterwards.
-
-        Arguments:
-            chs: list of number of fully connected layers. [x1, x2, x3]
-
-        """
-        super().__init__()
-        ls = [Lin(chs[i], chs[i+1]) for i in range(len(chs)-1)]
-        bs = [BatchNorm1d(chs[i+1]) for i in range(len(chs)-2)]
-        self.lins = torch.nn.ModuleList(ls)
-        self.bns = torch.nn.ModuleList(bs)
-        self.relu = ReLU()
-
-    def forward(self, x):
-        '''
-        Arguments:
-            x: [bs, k, m]
-
-        Returns:
-            pred: predicated label, [bs, num_cls]
-        '''
-        for i in range(len(self.lins)-1):
-            x = self.relu(self.bns[i](self.lins[i](x)))
-        x = self.lins[-1](x)
-        return x
-
-
 def mlp(channels, last=False, leaky=False):
     if leaky:
         rectifier = LeakyReLU
@@ -53,39 +23,38 @@ def mlp(channels, last=False, leaky=False):
     return Seq(*l)
 
 
-def ChamferDistance(x, y):
-    x_size = x.size()
-    y_size = y.size()
-    assert (x_size[0] == y_size[0])
-    assert (x_size[2] == y_size[2])
-    x = torch.unsqueeze(x, 1)  # x = batch,1,2025,3
-    y = torch.unsqueeze(y, 2)  # y = batch,2048,1,3
+class SimuOcclusion(object):
+    '''
+    Simulate occlusion. Random select half side of points
+    pos: [N, 3]
+    batch: [N]
+    npts: the number of output sampled points
+    '''
+    def __call__(self, pos, batch, npts):
+        bsize = batch.max() + 1
+        pos = pos.view(bsize, -1, 3)
+        batch = batch.view(bsize, -1)
 
-    x = x.repeat(1, y_size[1], 1, 1)  # x = batch,2048,2025,3
-    y = y.repeat(1, 1, x_size[1], 1)  # y = batch,2048,2025,3
-    # x_y = (x - y).norm(dim=-1)
+        out_pos, out_batch = [], []
+        for i in range(pos.size(0)):
+            # define a plane by its normal and it goes through origin
+            vec = torch.rand(3).to(pos.device) - 0.5
 
+            # mask out half side of points
+            mask = pos[i].matmul(vec) > 0
+            p, b = pos[i][mask], batch[i][mask]
 
-    x_y = x - y
-    x_y = torch.pow(x_y, 2)  # x_y = batch,2048,2025,3
-    x_y = torch.sum(x_y, 3, keepdim=True)  # x_y = batch,2048,2025,1
-    x_y = torch.squeeze(x_y, 3)  # x_y = batch,2048,2025
-    x_y= torch.pow(x_y, 0.5)
+            # ensure output contains self.npts points
+            idx = np.random.choice(p.size(0), npts, True)
+            out_pos.append(p[idx])
+            out_batch.append(b[idx])
 
-    # x = x.unsqueeze(1)
-    # y = y.unsqueeze(2)
-    # x_y = (x - y).norm(dim=-1)
-    x_y_row, _ = torch.min(x_y, 1, keepdim=True)  # x_y_row = batch,1,2025
-    x_y_col, _ = torch.min(x_y, 2, keepdim=True)  # x_y_col = batch,2048,1
+        out_pos = torch.cat(out_pos, dim=0)
+        out_batch = torch.cat(out_batch, dim=0)
+        return out_pos, out_batch
 
-    x_y_row = torch.mean(x_y_row, 2, keepdim=True)  # x_y_row = batch,1,1
-    x_y_col = torch.mean(x_y_col, 1, keepdim=True)  # batch,1,1
-    x_y_row_col = torch.cat((x_y_row, x_y_col), 2)  # batch,1,2
-    chamfer_distance, _ = torch.max(x_y_row_col, 2, keepdim=True)  # batch,1,1
-    # chamfer_distance = torch.reshape(chamfer_distance,(x_size[0],-1))  #batch,1
-    # chamfer_distance = torch.squeeze(chamfer_distance,1)    # batch
-    chamfer_distance = torch.mean(chamfer_distance)
-    return chamfer_distance
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
 
 
 def chamfer_loss(x, y):
