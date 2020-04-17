@@ -4,15 +4,36 @@ import sys
 import torch.nn.functional as F
 from torch_geometric.nn import PointConv, fps, radius
 from torch_geometric.utils import scatter_
-from .model_utils import FCBlock, mlp
+from .model_utils import mlp
 
 
 class Model(torch.nn.Module):
-    def __init__(self, num_subpc_train, num_subpc_test, num_contri_feats, is_fidReg=True):
+    '''
+    Point clouds completion model.
+
+    Arguments:
+        radius: float, radius for generating sub point clouds
+        bottleneck: int, the size of bottleneck
+        ratio_train: float, sampling ratio in further points sampling (FPS) during training
+        ratio_test: float, sampling ratio in FPS during test
+        num_contri_feats_train: int, the number of contribution features during training
+        num_contri_feats_test: int, the number of contribution features during test
+        is_fidReg: bool, flag for fidelity regularization during training
+    '''
+
+    def __init__(self,
+                 radius,
+                 bottleneck,
+                 ratio_train,
+                 ratio_test,
+                 num_contri_feats_train,
+                 num_contri_feats_test,
+                 is_fidReg=True):
         super(Model, self).__init__()
-        self.num_contri_feats = num_contri_feats
+        self.num_contri_feats_train = num_contri_feats_train
+        self.num_contri_feats_test = num_contri_feats_test
         self.is_fidReg = is_fidReg
-        self.encoder = Encoder(num_subpc_train, num_subpc_test)
+        self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule()
         self.decoder = Decoder()
 
@@ -24,7 +45,9 @@ class Model(torch.nn.Module):
         mean, std, x_idx, y_idx = self.encoder(x, pos, batch)
 
         # contribution feature selection
-        contribution_mean, contribution_std, mapping = self.feature_selection(mean, std, bsize, self.num_contri_feats)
+        contribution_mean, contribution_std, mapping = self.feature_selection(mean, std, bsize,
+                                                                              self.num_contri_feats_train,
+                                                                              self.num_contri_feats_test)
         self.contribution_mean, self.contribution_std = contribution_mean, contribution_std
 
         # compute optimal latent feature
@@ -68,24 +91,26 @@ class Model(torch.nn.Module):
         Generate point clouds from latent features.
 
         Arguments:
-            x: [bsize, 512]
+            x: [bsize, bottleneck]
         '''
         x = self.decoder(x)
         return x
 
-    def feature_selection(self, mean, std, bsize, num_feats):
+    def feature_selection(self, mean, std, bsize, num_feats_train, num_feats_test):
         '''
         Not all features generated from sub point clouds will be considered during
-        computation. During training, random feature selection is adapted. During
-        test, features with top probability will be contributed to calculate optimal
-        latent feature.
+        optimal latent feature computation. During training, random feature selection
+        is adapted. During test, features with top probability will be contributed
+        to calculate the optimal latent feature.
 
         Arguments:
             mean: [-1, f], computed mean for each sub point cloud
             std: [-1, f], computed std for each sub point cloud
             bsize: int, batch size
-            num_feats: int, number of candidate features comtributing to final latent
-                       features during test
+            num_feats_train: int, maximum number of candidate features comtributing to
+                             final latent features during training
+            num_feats_test: int, number of candidate features comtributing to final latent
+                             features during test
 
         Returns:
             new_mean: [bsize, k, f], selected contribution means
@@ -97,7 +122,7 @@ class Model(torch.nn.Module):
 
         if self.training:
             # feature random selection
-            num_feats = np.random.choice(np.arange(1, mean.size(1)//2), 1, False)
+            num_feats = np.random.choice(np.arange(1, num_feats_train+1), 1, False)
             idx = np.random.choice(mean.size(1), num_feats, False)
             new_mean = mean[:, idx, :]
             new_std = std[:, idx, :]
@@ -112,13 +137,13 @@ class Model(torch.nn.Module):
             # compute probability of each sub mean feature in other else distribution
             diff = mean.unsqueeze(2) - mean.unsqueeze(1)
             expanded_std = std.unsqueeze(1).expand(-1, std.size(1), -1, -1)
-            prob = -torch.log(expanded_std) - 0.5*torch.pow(diff/expanded_std, 2)      # [bsize, k, k, 512]
+            prob = -torch.log(expanded_std) - 0.5*torch.pow(diff/expanded_std, 2)      # [bsize, k, k, bottleneck]
             prob = prob.sum(dim=-1).sum(dim=-1)     # [bsize, k]
 
             # choose features with top probability
             sorted, indices = prob.sort(dim=1, descending=True)
-            top_indices = indices[:, :num_feats]
-            expanded_top_indices = top_indices.unsqueeze(-1).expand(-1, -1, mean.size(-1))     # [bsize, num, 512]
+            top_indices = indices[:, :num_feats_test]
+            expanded_top_indices = top_indices.unsqueeze(-1).expand(-1, -1, mean.size(-1))     # [bsize, num, bottleneck]
             new_mean = torch.gather(mean, dim=1, index=expanded_top_indices)
             new_std = torch.gather(std, dim=1, index=expanded_top_indices)
 
@@ -132,10 +157,11 @@ class Model(torch.nn.Module):
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, num_subpc_train, num_subpc_test):
+    def __init__(self, radius, bottleneck, ratio_train, ratio_test):
         super(Encoder, self).__init__()
-        self.sa_module = SAModule(0.2, num_subpc_train, num_subpc_test, mlp([3, 64, 128, 512], leaky=True))
-        self.mlp = mlp([512+3, 512, 512*2], last=True, leaky=True)
+        self.sa_module = SAModule(radius, ratio_train, ratio_test,
+                                  mlp([3, 64, 128, 512], leaky=True))
+        self.mlp = mlp([512+3, 512, bottleneck*2], last=True, leaky=True)
 
     def reparameterize(self, mean, std):
         eps = torch.randn_like(std)
@@ -150,26 +176,25 @@ class Encoder(torch.nn.Module):
 
 
 class SAModule(torch.nn.Module):
-    def __init__(self, r, num_distPoint_train, num_distPoint_test, nn):
+    def __init__(self, r, ratio_train, ratio_test, nn):
         '''
         Set abstraction module, which is proposed by Pointnet++.
         r: ball query radius
-        num_distPoint_train: the number of selected distant points in further
-                             points sampling (fps) during training.
-        num_distPoint_test: the number of selected distant points in FPS during test.
+        ratio_train: sampling ratio in further points sampling (FPS) during training.
+        ratio_test: sampling ratio in FPS during test.
         nn: mlp.
         '''
         super(SAModule, self).__init__()
         self.r = r
-        self.num_distPoint_train = num_distPoint_train
-        self.num_distPoint_test = num_distPoint_test
+        self.ratio_train = ratio_train
+        self.ratio_test = ratio_test
         self.conv = PointConv(nn)
 
     def forward(self, x, pos, batch):
         if self.training:
-            ratio = self.num_distPoint_train/2048
+            ratio = self.ratio_train
         else:
-            ratio = self.num_distPoint_test/1024
+            ratio = self.ratio_test
         idx = fps(pos, batch, ratio=ratio)
         # ball query searches neighbors
         y_idx, x_idx = radius(pos, pos[idx], self.r, batch, batch[idx],
