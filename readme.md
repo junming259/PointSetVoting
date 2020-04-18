@@ -60,5 +60,5 @@ $ bash evaluate.sh
 
 ### To do
 - [x] Point clouds completion on ShapeNet
-- [] Point clouds completion on Completion3D (Weijia)
-- [] Classification & completion on ModelNet40
+- [ ] Point clouds completion on Completion3D (Weijia)
+- [ ] Classification & completion on ModelNet40
