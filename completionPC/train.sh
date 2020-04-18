@@ -3,7 +3,6 @@ docker run -it --rm \
   --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/completionPC/cpc \
-  -v $(pwd)/../data:/completionPC/data \
   -v $(pwd)/../utils:/completionPC/utils \
   -v $(pwd)/../data_root:/completionPC/data_root \
   -w /completionPC/cpc \
