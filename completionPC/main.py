@@ -8,7 +8,7 @@ sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.logger import Logger
 from utils.models import Model
-from utils.model_utils import SimuOcclusion, Bottom, get_lr, chamfer_loss
+from utils.model_utils import SimuOcclusion, get_lr, chamfer_loss
 from shutil import copyfile
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
