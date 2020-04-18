@@ -22,8 +22,8 @@ __Point Clouds Completion__
 Manually download dataset and save to `data_root/`:  [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M).
 Or when running training file, it will automatically download the dataset.
 
-To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/) (Weijia).
-A customized dataset would be preferred. You can find an [example](https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/shapenet.html#ShapeNet) and [tutorials](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html).  
+To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/).
+A customized dataset would be preferred. You can find an [example](https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/shapenet.html#ShapeNet) and [tutorials](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html). (Weijia)
 
 
 ### Build docker image
@@ -57,3 +57,8 @@ $ python3 visualize_results_pro.py
 $ cd completionPC/
 $ bash evaluate.sh
 ```
+
+### To do
+- [x] Point clouds completion on ShapeNet
+- [] Point clouds completion on Completion3D (Weijia)
+- [] Classification & completion on ModelNet40
