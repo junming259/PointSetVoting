@@ -35,7 +35,7 @@ class Model(torch.nn.Module):
         self.is_fidReg = is_fidReg
         self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule()
-        self.decoder = Decoder()
+        self.decoder = Decoder(bottleneck)
 
     def forward(self, x=None, pos=None, batch=None):
         bsize = batch.max() + 1
@@ -79,6 +79,15 @@ class Model(torch.nn.Module):
             min_dist = diff.norm(dim=-1).min(dim=1)[0]
             fidelity = scatter_('mean', min_dist, y_idx[mask])
             fidelity = torch.mean(fidelity)
+
+            # # compute all fidelity
+            # latent_pc = self.decoder(mean)
+            # # compute fidelity
+            # diff = pos[x_idx].unsqueeze(1) - latent_pc[y_idx]
+            # min_dist = diff.norm(dim=-1).min(dim=1)[0]
+            # fidelity = scatter_('mean', min_dist, y_idx)
+            # fidelity = torch.mean(fidelity)
+
 
         if not self.training:
             # select the first contribution point clouds for visualization
@@ -223,13 +232,13 @@ class LatentModule(torch.nn.Module):
 
 
 class Decoder(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, bottleneck):
         '''
         Same decoder structure as proposed in the FoldingNet
         '''
         super(Decoder, self).__init__()
-        self.fold1 = FoldingNetDecFold1()
-        self.fold2 = FoldingNetDecFold2()
+        self.fold1 = FoldingNetDecFold1(bottleneck)
+        self.fold2 = FoldingNetDecFold2(bottleneck)
 
     def forward(self, x):  # input x = batch, 512
         batch_size = x.size(0)
@@ -256,9 +265,9 @@ class Decoder(torch.nn.Module):
 
 
 class FoldingNetDecFold1(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, bottleneck):
         super(FoldingNetDecFold1, self).__init__()
-        self.conv1 = torch.nn.Conv1d(514, 512, 1)
+        self.conv1 = torch.nn.Conv1d(bottleneck+2, 512, 1)
         self.conv2 = torch.nn.Conv1d(512, 512, 1)
         self.conv3 = torch.nn.Conv1d(512, 3, 1)
         self.relu = torch.nn.ReLU()
@@ -277,9 +286,9 @@ class FoldingNetDecFold1(torch.nn.Module):
 
 
 class FoldingNetDecFold2(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, bottleneck):
         super(FoldingNetDecFold2, self).__init__()
-        self.conv1 = torch.nn.Conv1d(515, 512, 1)
+        self.conv1 = torch.nn.Conv1d(bottleneck+3, 512, 1)
         self.conv2 = torch.nn.Conv1d(512, 512, 1)
         self.conv3 = torch.nn.Conv1d(512, 3, 1)
         self.relu = torch.nn.ReLU()
