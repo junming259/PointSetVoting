@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0'"' \
+  --gpus '"device='1'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/completionPC/cpc \
   -v $(pwd)/../utils:/completionPC/utils \
@@ -8,19 +8,16 @@ docker run -it --rm \
   -w /completionPC/cpc \
   completion-pc \
   python main.py \
-  --model_name cpc_b8e600s250lr2e-4_r025tr64-16_te16-16_occlu \
-  --categories Chair \
+  --eval \
+  --checkpoint checkpoint/cpc_b12e600s250lr2e-4_r025tr64-16_te16-16_bn512_MN40_cls \
+  --dataset ModelNet40 \
   --num_pts 2048 \
   --num_pts_observed 1024 \
-  --lr 0.0002 \
-  --step_size 250 \
-  --max_epoch 600 \
-  --bsize 8 \
   --radius 0.25 \
   --bottleneck 512 \
   --num_subpc_train 64 \
   --num_contri_feats_train 16 \
-  --num_subpc_test 16 \
-  --num_contri_feats_test 16 \
-  --is_fidReg
+  --num_subpc_test 4 \
+  --num_contri_feats_test 4 \
+  --is_classifier
   # --randRotY

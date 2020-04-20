@@ -21,21 +21,26 @@ class Model(torch.nn.Module):
         is_fidReg: bool, flag for fidelity regularization during training
     '''
 
-    def __init__(self,
-                 radius,
-                 bottleneck,
-                 ratio_train,
-                 ratio_test,
-                 num_contri_feats_train,
-                 num_contri_feats_test,
-                 is_fidReg=True):
+    def __init__(
+            self,
+            radius,
+            bottleneck,
+            ratio_train,
+            ratio_test,
+            num_contri_feats_train,
+            num_contri_feats_test,
+            is_fidReg=True,
+            is_classifier=False):
         super(Model, self).__init__()
         self.num_contri_feats_train = num_contri_feats_train
         self.num_contri_feats_test = num_contri_feats_test
         self.is_fidReg = is_fidReg
+        self.is_classifier = is_classifier
         self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule()
         self.decoder = Decoder(bottleneck)
+        if is_classifier:
+            self.classifier = Classifier(bottleneck, 40)
 
     def forward(self, x=None, pos=None, batch=None):
         bsize = batch.max() + 1
@@ -80,20 +85,15 @@ class Model(torch.nn.Module):
             fidelity = scatter_('mean', min_dist, y_idx[mask])
             fidelity = torch.mean(fidelity)
 
-            # # compute all fidelity
-            # latent_pc = self.decoder(mean)
-            # # compute fidelity
-            # diff = pos[x_idx].unsqueeze(1) - latent_pc[y_idx]
-            # min_dist = diff.norm(dim=-1).min(dim=1)[0]
-            # fidelity = scatter_('mean', min_dist, y_idx)
-            # fidelity = torch.mean(fidelity)
-
-
         if not self.training:
             # select the first contribution point clouds for visualization
             self.contribution_pc = contribution_pos[contribution_batch==0]
 
-        return generated_pc, fidelity
+        if self.is_classifier:
+            score = self.classifier(optimal_z)
+            return generated_pc, fidelity, score
+
+        return generated_pc, fidelity, None
 
     def generate_pc_from_latent(self, x):
         '''
@@ -321,3 +321,29 @@ def GridSamplingLayer(batch_size, meshgrid):
         grid[:, d] = np.reshape(ret[d], -1)
     g = np.repeat(grid[np.newaxis, ...], repeats=batch_size, axis=0)
     return g
+
+
+class Classifier(torch.nn.Module):
+    '''
+    Classifier to do classification from the latent feature vector
+
+    Arguments:
+        bottleneck: bottleneck size
+        k: the number of output categories
+    '''
+    def __init__(self, bottleneck, k):
+        super(Classifier, self).__init__()
+        self.fc1 = torch.nn.Linear(bottleneck, 512)
+        self.fc2 = torch.nn.Linear(512, 256)
+        self.fc3 = torch.nn.Linear(256, k)
+        self.bn1 = torch.nn.BatchNorm1d(512)
+        self.bn2 = torch.nn.BatchNorm1d(256)
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, x):
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(self.bn2(self.fc2(x)))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.fc3(x)
+        return F.log_softmax(x, dim=-1)

@@ -37,13 +37,14 @@ class SimuOcclusion(object):
 
         out_pos, out_batch = [], []
         for i in range(pos.size(0)):
-            # define a plane by its normal and it goes through origin
-            vec = torch.rand(3).to(pos.device) - 0.5
-
-            # mask out half side of points
-            mask = pos[i].matmul(vec) > 0
-            p, b = pos[i][mask], batch[i][mask]
-
+            while True:
+                # define a plane by its normal and it goes through origin
+                vec = torch.rand(3).to(pos.device) - 0.5
+                # mask out half side of points
+                mask = pos[i].matmul(vec) > 0
+                p, b = pos[i][mask], batch[i][mask]
+                if p.size(0) >= 200:
+                    break
             # ensure output contains self.npts points
             idx = np.random.choice(p.size(0), npts, True)
             out_pos.append(p[idx])

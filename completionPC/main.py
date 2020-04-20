@@ -12,7 +12,7 @@ from utils.model_utils import SimuOcclusion, get_lr, chamfer_loss
 from shutil import copyfile
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
-from torch_geometric.datasets import ShapeNet
+from torch_geometric.datasets import ShapeNet, ModelNet
 import torch_geometric.transforms as T
 from torch_geometric.data import DataLoader
 
@@ -37,9 +37,13 @@ def train_one_epoch(loader, optimizer, logger, epoch):
 
         # training
         model.zero_grad()
-        generated_pc, fidelity = model(None, pos, batch)
+        generated_pc, fidelity, score = model(None, pos, batch)
         loss_chf = chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3))
         loss = loss_chf + fidelity
+        # loss = 0*loss_chf + 0*fidelity
+        if model.is_classifier:
+            loss_cls = F.nll_loss(score, label)
+            loss += loss_cls
         loss.backward()
         optimizer.step()
 
@@ -47,11 +51,15 @@ def train_one_epoch(loader, optimizer, logger, epoch):
 
         # write summary
         if i % 100 == 0:
-            # print('Training, Chamfer_loss: {:.5f}'.format(loss))
-            print('Train, chamfer_loss: {:.5f}, fidelity: {:.4f}'.format(loss_chf, fidelity))
             logger.scalar_summary('loss_chamfer', loss_chf, i)
             logger.scalar_summary('loss_fidelity', fidelity, i)
             logger.scalar_summary('lr', get_lr(optimizer), i)
+            if model.is_classifier:
+                logger.scalar_summary('loss_cls', loss_cls, i)
+                print('Train, chamfer_loss: {:.4f}, fidelity: {:.4f}, cls_loss: {:.4f}'.format(
+                    loss_chf, fidelity, loss_cls))
+            else:
+                print('Train, chamfer_loss: {:.4f}, fidelity: {:.4f}'.format(loss_chf, fidelity))
         i = i + 1
 
 
@@ -59,18 +67,23 @@ def test_one_epoch(loader, logger, epoch, save_dir):
 
     model.eval()
     total_chamfer_loss = []
+    acc = 0
     trans = SimuOcclusion()
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
-        pos, batch = data.pos, data.batch
+        pos, batch, label = data.pos, data.batch, data.y
         pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
 
         with torch.no_grad():
-            generated_pc, _ = model(None, pos_observed, batch_observed)
+            generated_pc, _, score = model(None, pos_observed, batch_observed)
             generated_latent_pc = model.generate_pc_from_latent(model.contribution_mean[0, 0, :].view(1, -1))
             contribution_pc = model.contribution_pc
         total_chamfer_loss.append(chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)))
+
+        if model.is_classifier:
+            pred = score.max(1)[1]
+            acc += pred.eq(label).sum().item()
 
         # save the first sample results for visualization
         if j == len(loader)-1:
@@ -88,7 +101,13 @@ def test_one_epoch(loader, logger, epoch, save_dir):
 
     avg_chamfer_loss = sum(total_chamfer_loss) / len(total_chamfer_loss)
     logger.scalar_summary('test_chamfer_dist', avg_chamfer_loss, epoch)
-    print('Epoch: {:03d}, eval_loss: {:.5f}\n'.format(epoch, avg_chamfer_loss))
+
+    if model.is_classifier:
+        acc = acc / len(loader.dataset)
+        logger.scalar_summary('test_acc', acc, epoch)
+        print('Epoch: {:03d}, eval_chamfer_loss: {:.4f}, acc: {:.4f}\n'.format(epoch, avg_chamfer_loss, acc))
+    else:
+        print('Epoch: {:03d}, eval_chamfer_loss: {:.4f}\n'.format(epoch, avg_chamfer_loss))
 
 
 def train(args):
@@ -118,26 +137,31 @@ def train(args):
         scheduler.step()
         # validation
         test_one_epoch(test_dataloader, logger, epoch, save_dir)
-    # save model
-    torch.save(model.state_dict(), 'checkpoint/{}/model.pth'.format(model_name))
+        # save model
+        torch.save(model.state_dict(), 'checkpoint/{}/model.pth'.format(model_name))
 
 
 def evaluate(args, save_dir):
 
     model.eval()
     total_chamfer_loss = []
+    acc = 0
     trans = SimuOcclusion()
 
     for j, data in enumerate(test_dataloader, 0):
         data = data.to(device)
-        pos, batch = data.pos, data.batch
+        pos, batch, label = data.pos, data.batch, data.y
         pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
 
         with torch.no_grad():
-            generated_pc, _ = model(None, pos_observed, batch_observed)
+            generated_pc, _, score = model(None, pos_observed, batch_observed)
             generated_latent_pc = model.generate_pc_from_latent(model.contribution_mean[0, 0, :].view(1, -1))
             contribution_pc = model.contribution_pc
         total_chamfer_loss.append(chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)))
+
+        if model.is_classifier:
+            pred = score.max(1)[1]
+            acc += pred.eq(label).sum().item()
 
         # save the first sample results for visualization
         pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
@@ -153,9 +177,53 @@ def evaluate(args, save_dir):
         np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
 
     avg_chamfer_loss = sum(total_chamfer_loss) / len(total_chamfer_loss)
-    print('{} point clouds are evaluated.'.format(len(test_dataset)))
+    print('{} point clouds are evaluated.'.format(len(test_dataloader.dataset)))
     print('Avg_chamfer_loss: {:.5f}'.format(avg_chamfer_loss))
     print('Sample results are saved to: {}'.format(save_dir))
+    if model.is_classifier:
+        acc = acc / len(test_dataloader.dataset)
+        print('Avg_accuracy: {:.4f}'.format(acc))
+
+
+def load_dataset(args):
+    assert args.dataset in ['ShapeNet', 'ModelNet40']
+
+    # load ShapeNet dataset
+    if args.dataset == 'ShapeNet':
+        pre_transform = T.NormalizeScale()
+        if args.randRotY:
+            transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+        else:
+            transform =T.FixedPoints(args.num_pts)
+
+        categories = args.categories.split(',')
+        train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval',
+                                 include_normals=False, pre_transform=pre_transform, transform=transform)
+        test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test',
+                                include_normals=False, pre_transform=pre_transform, transform=transform)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
+                                      num_workers=6, drop_last=True)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+                                     num_workers=6)
+
+    # load ModelNet40 dataset
+    else:
+        pre_transform = T.NormalizeScale()
+        if args.randRotY:
+            transform = T.Compose([T.SamplePoints(args.num_pts), T.RandomRotate(180, axis=1)])
+        else:
+            transform = T.SamplePoints(args.num_pts)
+
+        train_dataset = ModelNet('../data_root/ModelNet40', name='40', train=True,
+                                 pre_transform=pre_transform, transform=transform)
+        test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
+                                 pre_transform=pre_transform, transform=transform)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
+                                      num_workers=6, drop_last=True)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+                                     num_workers=6)
+
+    return train_dataloader, test_dataloader
 
 
 def backup(log_dir, parser):
@@ -176,9 +244,12 @@ def backup(log_dir, parser):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model', help="model name")
-    parser.add_argument("--categories", default='Chair', help="point clouds categories, string or [string]. \
-                        Airplane, Bag, Cap, Car, Chair, Earphone, Guitar, Knife, Lamp, Laptop, Motorbike, \
-                        Mug, Pistol, Rocket, Skateboard, Table")
+    parser.add_argument("--dataset", type=str, help="ShapeNet or ModelNet40")
+    parser.add_argument("--is_classifier", action='store_true', help="flag for computing classification score \
+                        this is only valid for ModelNet.")
+    parser.add_argument("--categories", default='Chair', help="point clouds categories in ShapeNet, \
+                        string or [string]. Airplane, Bag, Cap, Car, Chair, Earphone, Guitar, Knife, \
+                        Lamp, Laptop, Motorbike, Mug, Pistol, Rocket, Skateboard, Table")
     parser.add_argument("--num_pts", type=int, help="the number of input points")
     parser.add_argument("--num_pts_observed", type=int, help="the number of points in observed point clouds")
     parser.add_argument("--bsize", type=int, default=8, help="batch size")
@@ -197,31 +268,20 @@ if __name__ == '__main__':
     parser.add_argument("--checkpoint", type=str, help="directory which contains pretrained model (.pth)")
 
     args = parser.parse_args()
+    train_dataloader, test_dataloader = load_dataset(args)
+    # only support classification on modelnet40
+    is_classifier = args.is_classifier and args.dataset=='ModelNet40'
+
+    model = Model(
+        radius=args.radius,
+        bottleneck=args.bottleneck,
+        ratio_train=args.num_subpc_train/args.num_pts,
+        ratio_test=args.num_subpc_test/args.num_pts_observed,
+        num_contri_feats_train=args.num_contri_feats_train,
+        num_contri_feats_test=args.num_contri_feats_test,
+        is_fidReg=args.is_fidReg,
+        is_classifier=is_classifier)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    categories = args.categories.split(',')
-    pre_transform = T.NormalizeScale()
-    if args.randRotY:
-        transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
-    else:
-        transform = T.Compose([T.FixedPoints(args.num_pts)])
-
-    train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval',
-                             include_normals=False, pre_transform=pre_transform, transform=transform)
-    test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test',
-                            include_normals=False, pre_transform=pre_transform, transform=transform)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
-                                  num_workers=6, drop_last=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
-                                 num_workers=6)
-
-    model = Model(radius=args.radius,
-                  bottleneck=args.bottleneck,
-                  ratio_train=args.num_subpc_train/args.num_pts,
-                  ratio_test=args.num_subpc_test/args.num_pts_observed,
-                  num_contri_feats_train=args.num_contri_feats_train,
-                  num_contri_feats_test=args.num_contri_feats_test,
-                  is_fidReg=args.is_fidReg)
     model.to(device)
 
     # evaluation
