@@ -36,8 +36,9 @@ $ bash build.sh
 Given the already built docker image, train the model by running:
 ```
 $ cd completionPC/
-$ bash train.sh
+$ bash train_shapenet.sh
 ```
+The model can be trained with multiple GPUs, set the ```--gpus ``` in ``` train_shapenet.sh```.
 
 and visualize the training process by running:
 ```
@@ -55,10 +56,12 @@ $ python3 visualize_results_pro.py
 ### Evaluation
 ```
 $ cd completionPC/
-$ bash evaluate.sh
+$ bash evaluate_shapenet.sh
 ```
+Make sure the ```--checkpoint``` is correct in ```evaluate_shapenet.sh```
 
 ### To do
 - [x] Point clouds completion on ShapeNet
+- [x] Multi GPUs implementation
 - [ ] Point clouds completion on Completion3D (Weijia)
-- [ ] Classification & completion on ModelNet40
+- [ ] Create a dataset featuring on occlusion
