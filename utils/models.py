@@ -8,7 +8,7 @@ from .model_utils import mlp
 
 
 class Model(torch.nn.Module):
-    '''
+    """
     Point clouds completion model.
 
     Arguments:
@@ -19,38 +19,52 @@ class Model(torch.nn.Module):
         num_contri_feats_train: int, the number of contribution features during training
         num_contri_feats_test: int, the number of contribution features during test
         is_fidReg: bool, flag for fidelity regularization during training
-    '''
+    """
 
     def __init__(
             self,
             radius,
             bottleneck,
-            ratio_train,
-            ratio_test,
+            num_pts,
+            num_subpc_train,
+            num_pts_observed,
+            num_subpc_test,
             num_contri_feats_train,
             num_contri_feats_test,
             is_fidReg=True,
-            is_classifier=False):
+            is_classifier=False
+        ):
         super(Model, self).__init__()
+        self.num_subpc_train = num_subpc_train
+        self.num_subpc_test = num_subpc_test
         self.num_contri_feats_train = num_contri_feats_train
         self.num_contri_feats_test = num_contri_feats_test
         self.is_fidReg = is_fidReg
         self.is_classifier = is_classifier
+        self.bottleneck = bottleneck
+        self.contribution_pc = None
+        self.contribution_mean = None
+        self.contribution_std = None
+
+        ratio_train = num_subpc_train / num_pts
+        ratio_test = num_subpc_test / num_pts_observed
         self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule()
         self.decoder = Decoder(bottleneck)
         if is_classifier:
-            self.classifier = Classifier(bottleneck, 40)
+            self.classifier = Classifier(bottleneck, 10)
 
     def forward(self, x=None, pos=None, batch=None):
-        bsize = batch.max() + 1
-        fidelity = 0
+        fidelity, score = None, None
+        batch = batch - batch.min()
 
         # extract feature for each sub point clouds
         mean, std, x_idx, y_idx = self.encoder(x, pos, batch)
 
-        # contribution feature selection
-        contribution_mean, contribution_std, mapping = self.feature_selection(mean, std, bsize,
+        # select contribution feature
+        contribution_mean, contribution_std, mapping = self.feature_selection(mean, std,
+                                                                              self.num_subpc_train,
+                                                                              self.num_subpc_test,
                                                                               self.num_contri_feats_train,
                                                                               self.num_contri_feats_test)
         self.contribution_mean, self.contribution_std = contribution_mean, contribution_std
@@ -69,12 +83,18 @@ class Model(torch.nn.Module):
         contribution_pos = pos[x_idx[mask]]
         contribution_batch = batch[x_idx[mask]]
 
-        if self.training and self.is_fidReg:
+        # output the first contribution point clouds for visualization
+        first_batch = contribution_batch.min()
+        self.contribution_pc = contribution_pos[contribution_batch==first_batch]
+
+        if self.is_fidReg:
             # during training reduce fidelity, which is the average distance from
             # each point in the input to its nearest neighbour in the output. This
-            # measures how well the input is preserved.
+            # measures how well the input is preserved. To reduce computation resource,
+            # only considered contribution points
             masked_y_idx = y_idx[mask].detach().cpu().numpy()
             mapped_masked_y_idx = list(map(lambda x: mapping[x], masked_y_idx))
+            mapped_masked_y_idx = torch.from_numpy(np.array(mapped_masked_y_idx))
 
             # generate point clouds from each contribution latent feature
             latent_pcs = self.decoder(contribution_mean.view(-1, contribution_mean.size(2)))
@@ -82,85 +102,77 @@ class Model(torch.nn.Module):
             # compute fidelity
             diff = contribution_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
             min_dist = diff.norm(dim=-1).min(dim=1)[0]
-            fidelity = scatter_('mean', min_dist, y_idx[mask])
-            fidelity = torch.mean(fidelity)
+            fidelity = scatter_('mean', min_dist, mapped_masked_y_idx.cuda())
 
-        if not self.training:
-            # select the first contribution point clouds for visualization
-            self.contribution_pc = contribution_pos[contribution_batch==0]
-
+        # TO DO, classification
         if self.is_classifier:
             score = self.classifier(optimal_z)
-            return generated_pc, fidelity, score
 
-        return generated_pc, fidelity, None
+        return generated_pc, fidelity, score
 
     def generate_pc_from_latent(self, x):
-        '''
+        """
         Generate point clouds from latent features.
 
         Arguments:
             x: [bsize, bottleneck]
-        '''
+        """
         x = self.decoder(x)
         return x
 
-    def feature_selection(self, mean, std, bsize, num_feats_train, num_feats_test):
-        '''
+    def feature_selection(
+            self,
+            mean,
+            std,
+            num_feats_train,
+            num_feats_test,
+            num_contri_feats_train,
+            num_contri_feats_test
+        ):
+        """
         Not all features generated from sub point clouds will be considered during
         optimal latent feature computation. During training, random feature selection
-        is adapted. During test, features with top probability will be contributed
-        to calculate the optimal latent feature.
+        is adapted. During test, most or all features will be contributed to calculate
+        the optimal latent feature.
 
         Arguments:
             mean: [-1, f], computed mean for each sub point cloud
             std: [-1, f], computed std for each sub point cloud
-            bsize: int, batch size
-            num_feats_train: int, maximum number of candidate features comtributing to
-                             final latent features during training
-            num_feats_test: int, number of candidate features comtributing to final latent
-                             features during test
+            num_feats_train: the number of extracted features from encoder during training
+            num_feats_test: the number of extracted features from encoder during test
+            num_contri_feats_train: int, maximum number of candidate features comtributing
+                                    to final latent features during training
+            num_contri_feats_test: int, the number of candidate features comtributing
+                                   to final latent features during test
 
         Returns:
-            new_mean: [bsize, k, f], selected contribution means
-            new_std: bsize, k, f], selected contribution std
+            new_mean: [bsize, num_contri_feats_train, f], selected contribution means
+            new_std: [bsize, num_contri_feats_test, f], selected contribution std
             mapping: dict,
-        '''
-        mean = mean.view(bsize, -1, mean.size(1))
-        std = std.view(bsize, -1, std.size(1))
-
+        """
         if self.training:
-            # feature random selection
-            num_feats = np.random.choice(np.arange(1, num_feats_train+1), 1, False)
-            idx = np.random.choice(mean.size(1), num_feats, False)
-            new_mean = mean[:, idx, :]
-            new_std = std[:, idx, :]
+            mean = mean.view(-1, num_feats_train, mean.size(1))
+            std = std.view(-1, num_feats_train, std.size(1))
 
-            # build a mapping
-            source_idx = torch.arange(mean.size(0)*mean.size(1))
-            target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
-            source_idx = source_idx.view(bsize, -1)[:, idx].view(-1)
-            mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
+            # feature random selection
+            num = np.random.choice(np.arange(1, num_contri_feats_train+1), 1, False)
+            idx = np.random.choice(mean.size(1), num, False)
 
         else:
-            # compute probability of each sub mean feature in other else distribution
-            diff = mean.unsqueeze(2) - mean.unsqueeze(1)
-            expanded_std = std.unsqueeze(1).expand(-1, std.size(1), -1, -1)
-            prob = -torch.log(expanded_std) - 0.5*torch.pow(diff/expanded_std, 2)      # [bsize, k, k, bottleneck]
-            prob = prob.sum(dim=-1).sum(dim=-1)     # [bsize, k]
+            mean = mean.view(-1, num_feats_test, mean.size(1))
+            std = std.view(-1, num_feats_test, std.size(1))
 
-            # choose features with top probability
-            sorted, indices = prob.sort(dim=1, descending=True)
-            top_indices = indices[:, :num_feats_test]
-            expanded_top_indices = top_indices.unsqueeze(-1).expand(-1, -1, mean.size(-1))     # [bsize, num, bottleneck]
-            new_mean = torch.gather(mean, dim=1, index=expanded_top_indices)
-            new_std = torch.gather(std, dim=1, index=expanded_top_indices)
+            # feature random selection
+            idx = np.random.choice(num_feats_test, num_contri_feats_test, False)
 
-            # build a mapping
-            source_idx = torch.arange(indices.numel()).view(bsize, -1)
-            target_idx = torch.arange(top_indices.numel())
-            source_idx = torch.gather(source_idx, 1, top_indices.cpu()).view(-1)
-            mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
+        new_mean = mean[:, idx, :]
+        new_std = std[:, idx, :]
+
+        # build a mapping
+        source_idx = torch.arange(mean.size(0)*mean.size(1))
+        target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
+        source_idx = source_idx.view(-1, num_feats_test)[:, idx].view(-1)
+        mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
         return new_mean, new_std, mapping
 
@@ -186,13 +198,13 @@ class Encoder(torch.nn.Module):
 
 class SAModule(torch.nn.Module):
     def __init__(self, r, ratio_train, ratio_test, nn):
-        '''
+        """
         Set abstraction module, which is proposed by Pointnet++.
         r: ball query radius
         ratio_train: sampling ratio in further points sampling (FPS) during training.
         ratio_test: sampling ratio in FPS during test.
         nn: mlp.
-        '''
+        """
         super(SAModule, self).__init__()
         self.r = r
         self.ratio_train = ratio_train
@@ -220,9 +232,9 @@ class LatentModule(torch.nn.Module):
         super(LatentModule, self).__init__()
 
     def forward(self, mean, std):
-        '''
-        mean: [bsize, n, k]
-        '''
+        """
+        mean: [bsize, n, bottleneck]
+        """
         # guassian model to get optimal
         x = mean
         denorm = torch.sum(1/std, dim=1)
@@ -233,9 +245,9 @@ class LatentModule(torch.nn.Module):
 
 class Decoder(torch.nn.Module):
     def __init__(self, bottleneck):
-        '''
+        """
         Same decoder structure as proposed in the FoldingNet
-        '''
+        """
         super(Decoder, self).__init__()
         self.fold1 = FoldingNetDecFold1(bottleneck)
         self.fold2 = FoldingNetDecFold2(bottleneck)
@@ -307,13 +319,13 @@ class FoldingNetDecFold2(torch.nn.Module):
 
 
 def GridSamplingLayer(batch_size, meshgrid):
-    '''
+    """
     output Grid points as a NxD matrix
     params = {
     'batch_size': 8
     'meshgrid': [[-0.3,0.3,45],[-0.3,0.3,45]]
     }
-    '''
+    """
     ret = np.meshgrid(*[np.linspace(it[0], it[1], num=it[2]) for it in meshgrid])
     ndim = len(meshgrid)
     grid = np.zeros((np.prod([it[2] for it in meshgrid]), ndim), dtype=np.float32)  # MxD
@@ -324,26 +336,29 @@ def GridSamplingLayer(batch_size, meshgrid):
 
 
 class Classifier(torch.nn.Module):
-    '''
+    """
     Classifier to do classification from the latent feature vector
 
     Arguments:
         bottleneck: bottleneck size
         k: the number of output categories
-    '''
+    """
     def __init__(self, bottleneck, k):
         super(Classifier, self).__init__()
         self.fc1 = torch.nn.Linear(bottleneck, 512)
         self.fc2 = torch.nn.Linear(512, 256)
         self.fc3 = torch.nn.Linear(256, k)
-        self.bn1 = torch.nn.BatchNorm1d(512)
-        self.bn2 = torch.nn.BatchNorm1d(256)
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
-        x = F.relu(self.bn1(self.fc1(x)))
+        # x = F.relu(self.bn1(self.fc1(x)))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        # x = F.relu(self.bn2(self.fc2(x)))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        # x = self.fc3(x)
+        x = F.relu(self.fc1(x))
         x = F.dropout(x, p=0.5, training=self.training)
-        x = F.relu(self.bn2(self.fc2(x)))
+        x = F.relu(self.fc2(x))
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.fc3(x)
         return F.log_softmax(x, dim=-1)
