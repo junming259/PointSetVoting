@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='1'"' \
+  --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/completionPC/cpc \
   -v $(pwd)/../utils:/completionPC/utils \
@@ -9,15 +9,17 @@ docker run -it --rm \
   completion-pc \
   python main.py \
   --eval \
-  --checkpoint checkpoint/cpc_b8e600s250lr2e-4_r025tr64-16_te16-16_occlu \
+  --checkpoint checkpoint/cpc_model \
   --dataset ShapeNet \
-  --categories Chair \
+  --categories Chair,Airplane,Car \
   --num_pts 2048 \
   --num_pts_observed 1024 \
+  --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
   --num_subpc_train 64 \
   --num_contri_feats_train 16 \
-  --num_subpc_test 4 \
-  --num_contri_feats_test 4
+  --num_subpc_test 16 \
+  --num_contri_feats_test 12 \
+  --is_fidReg
   # --randRotY
