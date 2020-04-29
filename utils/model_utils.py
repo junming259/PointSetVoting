@@ -42,6 +42,7 @@ class SimuOcclusion(object):
                 vec = torch.rand(3).to(pos.device) - 0.5
                 # mask out half side of points
                 mask = pos[i].matmul(vec) > 0
+                # mask = mask & (pos[i, :, 1] < 0)
                 p, b = pos[i][mask], batch[i][mask]
                 if p.size(0) >= 200:
                     break
@@ -60,15 +61,28 @@ class SimuOcclusion(object):
 
 def chamfer_loss(x, y):
     '''
-    Compute chamfer distance for x and y
+    Compute chamfer distance for x and y. Note there are multiple version of chamfer
+    distance. The implemented chamfer distance is defined in:
+
+        https://arxiv.org/pdf/1612.00603.pdf.
+
+    It finds the nearest neighbor in the other set and computes their squared
+    distances which are summed over both target and ground-truth sets.
+
+    Arguments:
+        x: [bsize, m, 3]
+        y: [bsize, n, 3]
+
+    Returns:
+        dis: scalar
     '''
     x = x.unsqueeze(1)
     y = y.unsqueeze(2)
-    diff = (x - y).norm(dim=-1)
+    # diff = (x - y).norm(dim=-1)
+    diff = (x - y).pow(2).sum(dim=-1)
     dis1 = diff.min(dim=1)[0].mean(dim=1)
     dis2 = diff.min(dim=2)[0].mean(dim=1)
     dis = dis1 + dis2
-    # dis = torch.stack([dis1, dis2], dim=-1).max(-1)[0]
     return dis.mean()
 
 
