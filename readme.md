@@ -27,25 +27,25 @@ $ bash build.sh
 ### ShapeNet
 Currently only point clouds completion is supported on [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M) dataset. Manually download dataset and save it to `data_root/`. You can set the ```--categories``` in ``` train_shapenet.sh``` to specify which category or categories of object will be used.
 
-+ Given the already built docker image, train the model by running:
++ Train the model. Specify which GPU devices to be used, and change ```--gpus ``` option in ``` train_shapenet.sh``` to support multi-GPU training.
 ```
-$ cd completionPC/
+$ cd shapnet/
 $ bash train_shapenet.sh
 ```
-The model can be trained with multiple GPUs, set the ```--gpus ``` in ``` train_shapenet.sh```.
 
-+ Visualize the training process by running:
++ Visualize the training process by running Tensorboard.
 ```
-$ cd completionPC/
+$ cd shapnet/
 $ bash tensorboard.sh
 ```
 
-+ Evaluate your trained model by running:
++ Evaluate your trained model. Make sure the ```--checkpoint``` in ```evaluate_shapenet.sh``` is consistent with the one in ``` train_shapenet.sh```.
 ```
-$ cd completionPC/
+$ cd shapnet/
 $ bash evaluate_shapenet.sh
 ```
-Make sure the ```--checkpoint``` in ```evaluate_shapenet.sh``` is consistent with the one in ``` train_shapenet.sh```. After evaluation sample completion results are saved in ```completionPC/{model_name}/eval_sample_results/```. The results can be visualized by running:
+
++ Visualize sample completion results. After evaluation sample completion results are saved in ```shapnet/checkpoint/{model_name}/eval_sample_results/```. The results can be visualized by running:
 ```
 $ cd visulaization/
 $ python3 visualize_results_pro.py
