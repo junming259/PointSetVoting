@@ -24,12 +24,12 @@ def mlp(channels, last=False, leaky=False):
 
 
 class SimuOcclusion(object):
-    '''
+    """
     Simulate occlusion. Random select half side of points
     pos: [N, 3]
     batch: [N]
     npts: the number of output sampled points
-    '''
+    """
     def __call__(self, pos, batch, npts):
         bsize = batch.max() + 1
         pos = pos.view(bsize, -1, 3)
@@ -60,7 +60,7 @@ class SimuOcclusion(object):
 
 
 def chamfer_loss(x, y):
-    '''
+    """
     Compute chamfer distance for x and y. Note there are multiple version of chamfer
     distance. The implemented chamfer distance is defined in:
 
@@ -74,8 +74,8 @@ def chamfer_loss(x, y):
         y: [bsize, n, 3]
 
     Returns:
-        dis: scalar
-    '''
+        dis: [bsize]
+    """
     x = x.unsqueeze(1)
     y = y.unsqueeze(2)
     # diff = (x - y).norm(dim=-1)
@@ -83,7 +83,7 @@ def chamfer_loss(x, y):
     dis1 = diff.min(dim=1)[0].mean(dim=1)
     dis2 = diff.min(dim=2)[0].mean(dim=1)
     dis = dis1 + dis2
-    return dis.mean()
+    return dis
 
 
 def get_lr(optimizer):
