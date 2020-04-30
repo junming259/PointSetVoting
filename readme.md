@@ -15,36 +15,53 @@ __Point Clouds Completion__
 - Pytorch:1.4.0
 - [PyTorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 - CUDA 10.1
-- Tensorflow 1.14.0 (optional for visulaization during training)
 - open3D (optional for visulaization of point clouds)
 
-### Dataset
-Manually download dataset and save to `data_root/`:  [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M).
-Or when running training file, it will automatically download the dataset.
 
-To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/).
-A customized dataset would be preferred. You can find an [example](https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/shapenet.html#ShapeNet) and [tutorials](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html). (Weijia)
-
-
-### Build docker image
-For those who are familiar with docker, our code is containterized. Build docker image:
+### Preparation
+The code is containterized. Build docker image:
 ```
 $ bash build.sh
 ```
 
-### Training
-Given the already built docker image, train the model by running:
+### ShapeNet
+Currently only point clouds completion is supported on [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip) (674M) dataset. Manually download dataset and save it to `data_root/`. You can set the ```--categories``` in ``` train_shapenet.sh``` to specify which category or categories of object will be used.
+
++ Given the already built docker image, train the model by running:
 ```
 $ cd completionPC/
 $ bash train_shapenet.sh
 ```
 The model can be trained with multiple GPUs, set the ```--gpus ``` in ``` train_shapenet.sh```.
 
-and visualize the training process by running:
++ Visualize the training process by running:
 ```
 $ cd completionPC/
 $ bash tensorboard.sh
 ```
+
++ Evaluate your trained model by running:
+```
+$ cd completionPC/
+$ bash evaluate_shapenet.sh
+```
+Make sure the ```--checkpoint``` in ```evaluate_shapenet.sh``` is consistent with the one in ``` train_shapenet.sh```. After evaluation sample completion results are saved in ```completionPC/{model_name}/eval_sample_results/```. The results can be visualized by running:
+```
+$ cd visulaization/
+$ python3 visualize_results_pro.py
+```
+
+
+### ModelNet40
+Both point clouds completion and point clouds classification are supported on [ModelNet40](http://modelnet.cs.princeton.edu/ModelNet40.zip) (415M) dataset. Manually download dataset and save it to `data_root/`.
+
+
+
+
+### Completion3D (Weijia)
+To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/).
+A customized dataset would be preferred. You can find an [example](https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/shapenet.html#ShapeNet) and [tutorials](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html).
+
 
 ### Visualization
 Visulize sample results:
@@ -53,15 +70,9 @@ $ cd visulaization/
 $ python3 visualize_results_pro.py
 ```
 
-### Evaluation
-```
-$ cd completionPC/
-$ bash evaluate_shapenet.sh
-```
-Make sure the ```--checkpoint``` is correct in ```evaluate_shapenet.sh```
-
 ### To do
 - [x] Point clouds completion on ShapeNet
 - [x] Multi GPUs implementation
+- [x] Point clouds completion & classification on ModelNet40
 - [ ] Point clouds completion on Completion3D (Weijia)
 - [ ] Create a dataset featuring on occlusion
