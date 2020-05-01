@@ -120,6 +120,7 @@ def check_overwrite(model_name):
     # create directory
     os.makedirs(check_dir)
     os.makedirs(log_dir)
+
     return check_dir, log_dir
 
 
@@ -161,13 +162,18 @@ def evaluate(args, dataloader, save_dir):
     for j, data in enumerate(dataloader, 0):
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
-        pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+        # pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+        if args.is_simuOcc:
+            pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+        else:
+            pos_observed, batch_observed = pos, batch
 
         with torch.no_grad():
             generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
-            random_latent = model.module.contrib_mean[0, 0, :].view(1, -1)
-            generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
-            contribution_pc = model.module.contrib_pc
+            if args.is_pCompletion:
+                random_latent = model.module.contrib_mean[0, 0, :].view(1, -1)
+                generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
+                contribution_pc = model.module.contrib_pc
 
         if args.is_pCompletion:
             loss_summary['Avg_chamfer_dist'] += chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
@@ -177,24 +183,27 @@ def evaluate(args, dataloader, save_dir):
             pred = score.max(1)[1]
             loss_summary['Avg_acc'] += pred.eq(label).float().mean()
 
-        # save the first sample results for visualization
-        pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-        pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-        contribution_pc = contribution_pc.cpu().detach().numpy()
-        generated_pc = generated_pc.cpu().detach().numpy()[0]
-        generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
+        if args.is_pCompletion:
+            # save the first sample results for visualization
+            pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+            contribution_pc = contribution_pc.cpu().detach().numpy()
+            generated_pc = generated_pc.cpu().detach().numpy()[0]
+            generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
 
-        np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-        np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-        np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
-        np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
-        np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
+            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+            np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+            np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
+            np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
+            np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
 
     for item in loss_summary:
         loss_summary[item] /= len(dataloader)
         print('{}: {:.5f}'.format(item, loss_summary[item]))
     print('{} point clouds are evaluated.'.format(len(dataloader.dataset)))
-    print('Sample results are saved to: {}'.format(save_dir))
+
+    if args.is_pCompletion:
+        print('Sample results are saved to: {}'.format(save_dir))
 
 
 def load_dataset(args):
