@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0,1,2,3'"' \
+  --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/modelnet \
   -v $(pwd)/../utils:/cpc/utils \
@@ -8,23 +8,18 @@ docker run -it --rm \
   -w /cpc/modelnet \
   completion-pc \
   python ../utils/main.py \
-  --model_name cls_modelnet \
+  --eval \
+  --checkpoint checkpoint/cls_modelnet \
   --dataset modelnet \
   --num_pts 1024 \
   --num_pts_observed 512 \
-  --lr 0.001 \
-  --step_size 200 \
-  --max_epoch 500 \
-  --bsize 64 \
   --radius 0.25 \
   --bottleneck 1024 \
   --num_subpc_train 64 \
   --num_contrib_feats_train 10 \
-  --num_subpc_test 16 \
-  --num_contrib_feats_test 16 \
-  --weight_cls 1.0 \
+  --num_subpc_test 128 \
+  --num_contrib_feats_test 128 \
   --is_classifier \
-  --is_simuOcc \
   --is_vote \
-  # --is_pCompletion \
-  # --is_fidReg \
+  --is_simuOcc \
+  # --randRotY
