@@ -254,6 +254,7 @@ def load_dataset(args):
         # else:
         #     transform =T.FixedPoints(args.num_pts)
         
+        
         #set paths
         categories = args.categories.split(',')
         path_train_x = '../data_root/dataset2019/shapenet/train/partial/03001627'
