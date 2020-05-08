@@ -24,7 +24,7 @@ seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-class Completion3D_Dataset(Dataset):
+class Completion3D_Dataset(ShapeNet):
   def __init__(self, rootPath, mode):
         # self.categoryNames = [line.rstrip() for line in open(os.path.join(rootPath, 'modelnet40_shape_names.txt'))]
         # self.classes = dict(zip(self.categoryNames, range(len(self.categoryNames))))
@@ -245,7 +245,8 @@ def evaluate(args, dataloader, save_dir):
 
 def load_dataset(args):
     # load completion3D dataset
-    # TODO convert .h5 to .txt ??
+    # TODO convert .h5 to .txt and use Completion3D_Dataset?
+    # convert : https://gist.github.com/andrewfowlie/da173e2a476945a96039fb14e8b3a38a
     if args.dataset == 'completion3D':
         # pre_transform = T.NormalizeScale()
         # if args.randRotY:
@@ -264,6 +265,9 @@ def load_dataset(args):
                                       batch_size=bs, shuffle=True, num_workers=8, drop_last=True)
 
         train_dataloader = WrappedDataLoader(train_dataloader, preprocess)
+
+        x_test_dataset, y_test_dataset
+        test_dataloader
  
     # load ShapeNet dataset
     if args.dataset == 'shapenet':
