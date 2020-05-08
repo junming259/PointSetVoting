@@ -15,7 +15,7 @@ from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
-
+from utils.completion3D_data_utils import *
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 torch.backends.cudnn.benchmark = False
@@ -24,6 +24,33 @@ seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+class Completion3D_Dataset(Dataset):
+  def __init__(self, rootPath, mode):
+        # self.categoryNames = [line.rstrip() for line in open(os.path.join(rootPath, 'modelnet40_shape_names.txt'))]
+        # self.classes = dict(zip(self.categoryNames, range(len(self.categoryNames))))
+
+        # self.all_IDs = {}
+        # self.all_IDs['train'] = [line.rstrip() for line in open(os.path.join(rootPath, 'modelnet40_train.txt'))]
+        # self.all_IDs['test']  = [line.rstrip() for line in open(os.path.join(rootPath, 'modelnet40_test.txt'))]   
+
+        # shape_names = ['_'.join(x.split('_')[0:-1]) for x in self.all_IDs[mode]]
+        # self.datapath = [(shape_names[i], os.path.join(rootPath, shape_names[i], self.all_IDs[mode][i]) + '.txt') for i
+        #                  in range(len(self.all_IDs[mode]))]        
+
+  def __len__(self):
+        'Denotes the total number of samples'
+        return len(self.datapath)
+
+  def __getitem__(self, index):
+        # selectedDatapaths = self.datapath[index]
+        # selectedClasses   = self.classes[selectedDatapaths[0]]
+        # selectedClasses   = np.array([selectedClasses]).astype(np.int32)
+
+        # pointSet = np.loadtxt(selectedDatapaths[1], delimiter=',').astype(np.float32)
+        # pointSet = pointSet[0:sample_point_count,:] #Only choosing first 1024? -- Points have no ordering. We can already see shape with first 1024 pts
+        # pointSet = pointSet[:, 0:3]
+
+        # return pointSet, selectedClasses
 
 def train_one_epoch(args, loader, optimizer, logger, epoch):
 
@@ -205,8 +232,39 @@ def evaluate(args, dataloader, save_dir):
     if args.is_pCompletion:
         print('Sample results are saved to: {}'.format(save_dir))
 
+# https://github.com/shizikc/completion3d/blob/master/src/pytorch/train_filter.py
+# # create dataLoader objects
+# x_train, y_train = load_h5(path_train_x, path_train_y, size=TRAIN_SIZE)
+# x_val, y_val = load_h5(path_val_x, path_val_y, size=TRAIN_SIZE)
+# train_dl, val_dl = get_data(TensorDataset(x_train, y_train),
+#                             TensorDataset(x_val, y_val), bs=BATCH_SIZE)
+
+# train_dl = WrappedDataLoader(train_dl, preprocess)
+# valid_dl = WrappedDataLoader(val_dl, preprocess)
+# https://github.com/shizikc/completion3d/blob/master/src/pytorch/train_filter.py
 
 def load_dataset(args):
+    # load completion3D dataset
+    # TODO convert .h5 to .txt ??
+    if args.dataset == 'completion3D':
+        # pre_transform = T.NormalizeScale()
+        # if args.randRotY:
+        #     transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+        # else:
+        #     transform =T.FixedPoints(args.num_pts)
+        
+        #set paths
+        categories = args.categories.split(',')
+        path_train_x = '../data_root/dataset2019/shapenet/train/partial/03001627'
+        path_train_y = '../data_root/dataset2019/shapenet/train/gt/03001627'
+
+        # create dataLoader objects
+        x_train_dataset, y_train_dataset = load_h5(path_train_x, path_train_y, size=TRAIN_SIZE)
+        train_dataloader = DataLoader(TensorDataset(x_train_dataset, y_train_dataset), 
+                                      batch_size=bs, shuffle=True, num_workers=8, drop_last=True)
+
+        train_dataloader = WrappedDataLoader(train_dataloader, preprocess)
+ 
     # load ShapeNet dataset
     if args.dataset == 'shapenet':
         pre_transform = T.NormalizeScale()
