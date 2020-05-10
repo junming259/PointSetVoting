@@ -140,7 +140,9 @@ class ShapeNet_test(InMemoryDataset):
         extract_zip(path, self.root)
         os.unlink(path)
         shutil.rmtree(self.raw_dir)
+        # name is 'shapenetcore_partanno_segmentation_benchmark_v0_normal'
         name = self.url.split('/')[-1].split('.')[0]
+        # change the dataset name into 'raw'
         os.rename(osp.join(self.root, name), self.raw_dir)
 
     def process_filenames(self, filenames):

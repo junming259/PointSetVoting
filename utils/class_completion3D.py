@@ -182,21 +182,34 @@ class completion3D_class(InMemoryDataset):
 
     #     return data_list
 
-    # def process(self):
-    #     trainval = []
-    #     for i, split in enumerate(['train', 'val', 'test']):
-    #         path = osp.join(self.raw_dir, 'train_test_split',
-    #                         f'shuffled_{split}_file_list.json')
-    #         with open(path, 'r') as f:
-    #             filenames = [
-    #                 osp.sep.join(name.split('/')[1:]) + '.txt'
-    #                 for name in json.load(f)
-    #             ]  # Removing first directory.
-    #         data_list = self.process_filenames(filenames)
-    #         if split == 'train' or split == 'val':
-    #             trainval += data_list
-    #         torch.save(self.collate(data_list), self.processed_paths[i])
-    #     torch.save(self.collate(trainval), self.processed_paths[3])
+    def process(self):
+        trainval = []
+        for i, split in enumerate(['train', 'val', 'test']):
+            path = osp.join(self.raw_dir, f'{split}.list')
+            with open(path, 'r') as f:
+                filenames = [
+                    osp.seq.join(name + '.h5')
+                    for name in f
+                ]
+            data_list = self.process_filenames(filenames)
+            if split == 'train' or split == 'val':
+                trainval += data_list
+            torch.save(self.collate(data_list), self.processed_paths[i])
+        torch.save(self.collate(trainval), self.processed_paths[3])
+
+
+        #     path = osp.join(self.raw_dir, 'train_test_split',
+        #                     f'shuffled_{split}_file_list.json')
+        #     with open(path, 'r') as f:
+        #         filenames = [
+        #             osp.sep.join(name.split('/')[1:]) + '.txt'
+        #             for name in json.load(f)
+        #         ]  # Removing first directory.
+        #     data_list = self.process_filenames(filenames)
+        #     if split == 'train' or split == 'val':
+        #         trainval += data_list
+        #     torch.save(self.collate(data_list), self.processed_paths[i])
+        # torch.save(self.collate(trainval), self.processed_paths[3])
 
     def __repr__(self):
         return '{}({}, categories={})'.format(self.__class__.__name__,
