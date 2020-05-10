@@ -6,7 +6,7 @@ docker run -it --rm \
   -v $(pwd)/../data_root:/cpc/data_root \
   -w /cpc/shapenet \
   completion-pc \
-  python ../utils/main.py \
+  python ../utils/test_shapenet.py \
   --model_name completion_shapenet \
   --dataset shapenet \
   --categories Chair,Airplane,Car \

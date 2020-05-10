@@ -11,7 +11,7 @@ from torch_geometric.io import read_txt_array
 
 
 class completion3D_class(InMemoryDataset):
-    r"""The ShapeNet part level segmentation dataset from the `"A Scalable
+    """The ShapeNet part level segmentation dataset from the `"A Scalable
     Active Framework for Region Annotation in 3D Shape Collections"
     <http://web.stanford.edu/~ericyi/papers/part_annotation_16_small.pdf>`_
     paper, containing about 17,000 3D shape point clouds from 16 shape
@@ -53,61 +53,41 @@ class completion3D_class(InMemoryDataset):
     url = ('http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip'
            'dataset2019.zip')
 
-    # category_ids = {
-    #     'Airplane': '02691156',
-    #     'Bag': '02773838',
-    #     'Cap': '02954340',
-    #     'Car': '02958343',
-    #     'Chair': '03001627',
-    #     'Earphone': '03261776',
-    #     'Guitar': '03467517',
-    #     'Knife': '03624134',
-    #     'Lamp': '03636649',
-    #     'Laptop': '03642806',
-    #     'Motorbike': '03790512',
-    #     'Mug': '03797390',
-    #     'Pistol': '03948459',
-    #     'Rocket': '04099429',
-    #     'Skateboard': '04225987',
-    #     'Table': '04379243',
-    # }
-
-    #TODO
     category_ids = {
-        'plane'	: '02691156'
-        bench	02828884
-        cabinet	02933112
-        car	02958343
-        chair	03001627
-        monitor	03211117
-        lamp	03636649
-        speaker	03691459
-        firearm	04090263
-        couch	04256520
-        table	04379243
-        cellphone	04401088
-        watercraft	04530566
+        'plane': '02691156',
+        'bench': '02828884',
+        'cabinet': '02933112',
+        'car': '02958343',
+        'chair': '03001627',
+        'monitor': '03211117',
+        'lamp': '03636649',
+        'speaker': '03691459',
+        'firearm': '04090263',
+        'couch': '04256520',
+        'table': '04379243',
+        'cellphone': '04401088',
+        'watercraft': '04530566',
     }
 
 
-    seg_classes = {
-        'Airplane': [0, 1, 2, 3],
-        'Bag': [4, 5],
-        'Cap': [6, 7],
-        'Car': [8, 9, 10, 11],
-        'Chair': [12, 13, 14, 15],
-        'Earphone': [16, 17, 18],
-        'Guitar': [19, 20, 21],
-        'Knife': [22, 23],
-        'Lamp': [24, 25, 26, 27],
-        'Laptop': [28, 29],
-        'Motorbike': [30, 31, 32, 33, 34, 35],
-        'Mug': [36, 37],
-        'Pistol': [38, 39, 40],
-        'Rocket': [41, 42, 43],
-        'Skateboard': [44, 45, 46],
-        'Table': [47, 48, 49],
-    }
+    # seg_classes = {
+    #     'Airplane': [0, 1, 2, 3],
+    #     'Bag': [4, 5],
+    #     'Cap': [6, 7],
+    #     'Car': [8, 9, 10, 11],
+    #     'Chair': [12, 13, 14, 15],
+    #     'Earphone': [16, 17, 18],
+    #     'Guitar': [19, 20, 21],
+    #     'Knife': [22, 23],
+    #     'Lamp': [24, 25, 26, 27],
+    #     'Laptop': [28, 29],
+    #     'Motorbike': [30, 31, 32, 33, 34, 35],
+    #     'Mug': [36, 37],
+    #     'Pistol': [38, 39, 40],
+    #     'Rocket': [41, 42, 43],
+    #     'Skateboard': [44, 45, 46],
+    #     'Table': [47, 48, 49],
+    # }
 
     def __init__(self, root, categories=None, include_normals=True,
                  split='train', transform=None, pre_transform=None,
@@ -136,16 +116,17 @@ class completion3D_class(InMemoryDataset):
         self.data, self.slices = torch.load(path)
         self.data.x = self.data.x if include_normals else None
 
-        self.y_mask = torch.zeros((len(self.seg_classes.keys()), 50),
-                                  dtype=torch.bool)
-        for i, labels in enumerate(self.seg_classes.values()):
-            self.y_mask[i, labels] = 1
+        # self.y_mask = torch.zeros((len(self.seg_classes.keys()), 50),
+        #                           dtype=torch.bool)
+        # for i, labels in enumerate(self.seg_classes.values()):
+        #     self.y_mask[i, labels] = 1
 
     @property
     def raw_file_names(self):
         return list(self.category_ids.values()) + ['train_test_split']
 
     @property
+    # naming, eg : cha_air_car_test.pt, cha_air_car_train.pt
     def processed_file_names(self):
         cats = '_'.join([cat[:3].lower() for cat in self.categories])
         return [
@@ -163,7 +144,14 @@ class completion3D_class(InMemoryDataset):
 
     def process_filenames(self, filenames):
         data_list = []
-        categories_ids = [self.category_ids[cat] for cat in self.categories]786
+        # categories_ids :
+        # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
+        # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
+        categories_ids = [self.category_ids[cat] for cat in self.categories]
+        # i : 0 -> num of classes; 
+        # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
+        # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
+        # : 10, '04401088': 11, '04530566': 12}
         cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
 
         for name in filenames:

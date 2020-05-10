@@ -79,11 +79,39 @@ def load_dataset(args):
         datax = torch.tensor(fx['data'])
         print(datax)
         print(datax.shape)
-        fy = h5py.File('../data_root/11a9bc7dd64da10f344ebbc705ad8c07.h5', 'r')
+        fy = h5py.File('../data_root/11abf3b20f05ed8ea902d6f4ac8edb5f4.h5', 'r')
         datay = torch.tensor(fy['data'])
         print(datay)
         print(datay.shape)
         print(fx.keys())
+
+
+        category_ids = {
+            'plane': '02691156',
+            'bench': '02828884',
+            'cabinet': '02933112',
+            'car': '02958343',
+            'chair': '03001627',
+            'monitor': '03211117',
+            'lamp': '03636649',
+            'speaker': '03691459',
+            'firearm': '04090263',
+            'couch': '04256520',
+            'table': '04379243',
+            'cellphone': '04401088',
+            'watercraft': '04530566',
+        }
+        categories = list(category_ids.keys())
+        categories_ids = [category_ids[cat] for cat in categories]
+        cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
+        print(categories_ids)
+        print(cat_idx)
+        # test how to get the xxx in xxx.h5
+        name = '11abf3b20f05ed8ea902d6f4ac8edb5f4.h5'
+        cat = name.split(osp.sep)[0]
+        print(cat)
+        # osp???
+
         # train_dataset.categories
         # train_dataset.processed_file_names
         # train_dataset.raw_file_names
