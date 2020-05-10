@@ -89,7 +89,6 @@ def uniform_sampling(num_samples, r1, r2, dtype=torch.double):
 
 def batch_pairwise_dist(a, b):
     """
-
     :param a:
     :param b:
     :return: torch.Size([bs, num_samples, num_samples]) the i,j,k element is the distance  of the point j in a
@@ -109,7 +108,6 @@ def batch_pairwise_dist(a, b):
 
 def batch_min_dist(x, y, dim=2):
     """
-
     :param x:
     :param y:
     :param dim:
