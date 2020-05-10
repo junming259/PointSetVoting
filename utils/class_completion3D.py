@@ -125,14 +125,14 @@ class completion3D_class(InMemoryDataset):
     def raw_file_names(self):
         return list(self.category_ids.values()) + ['train_test_split']
 
-    # @property
-    # # naming the pt files, eg : cha_air_car_test.pt, cha_air_car_train.pt
-    # def processed_file_names(self):
-    #     cats = '_'.join([cat[:3].lower() for cat in self.categories])
-    #     return [
-    #         os.path.join('{}_{}.pt'.format(cats, split))
-    #         for split in ['train', 'val', 'test', 'trainval']
-    #     ]
+    @property
+    # naming the pt files, eg : cha_air_car_test.pt, cha_air_car_train.pt
+    def processed_file_names(self):
+        cats = '_'.join([cat[:3].lower() for cat in self.categories])
+        return [
+            os.path.join('{}_{}.pt'.format(cats, split))
+            for split in ['train', 'val', 'test', 'trainval']
+        ]
 
     def download(self):
         path = download_url(self.url, self.root)
@@ -146,41 +146,53 @@ class completion3D_class(InMemoryDataset):
         # print(self.raw_dir)
         print('end of download')
 
-    # def process_filenames(self, filenames):
-    #     data_list = []
-    #     # categories_ids :
-    #     # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
-    #     # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
-    #     categories_ids = [self.category_ids[cat] for cat in self.categories]
-    #     # i : 0 -> num of classes; 
-    #     # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
-    #     # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
-    #     # : 10, '04401088': 11, '04530566': 12}
-    #     cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
+    def process_filenames(self, filenames):
+        data_list = []
+        # categories_ids :
+        # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
+        # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
+        categories_ids = [self.category_ids[cat] for cat in self.categories]
+        # i : 0 -> num of classes; 
+        # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
+        # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
+        # : 10, '04401088': 11, '04530566': 12}
+        cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
 
-    #     #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
-    #     #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
+        #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
+        #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
 
-    #     for name in filenames:
-    #         cat = name.split(osp.sep)[0]
-    #         if cat not in categories_ids:
-    #             continue
-    #         fx = h5py.File(osp.join(osp.join(self.raw_dir, 'train/partial'), name))
+        for name in filenames:
+            cat = name.split(osp.sep)[0]
 
+            if cat not in categories_ids:
+                continue
 
+            fx = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name))
+            x = torch.tensor(fx['data'])
 
-    #         data = read_txt_array(osp.join(self.raw_dir, name))
-    #         pos = data[:, :3]
-    #         x = data[:, 3:6]
-    #         y = data[:, -1].type(torch.long)
-    #         data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
-    #         if self.pre_filter is not None and not self.pre_filter(data):
-    #             continue
-    #         if self.pre_transform is not None:
-    #             data = self.pre_transform(data)
-    #         data_list.append(data)
+            if self.split == 'train' or self.split == 'val':
+                # TODO trainval???
+                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/gt'), name))
+                y = torch.tensor(fy['data'])
 
-    #     return data_list
+            data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
+            if self.pre_filter is not None and not self.pre_filter(data):
+                continue
+            if self.pre_transform is not None:
+                data = self.pre_transform(data)
+
+            # data = read_txt_array(osp.join(self.raw_dir, name))
+            # pos = data[:, :3]
+            # x = data[:, 3:6]
+            # y = data[:, -1].type(torch.long)
+            # data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
+            # if self.pre_filter is not None and not self.pre_filter(data):
+            #     continue
+            # if self.pre_transform is not None:
+            #     data = self.pre_transform(data)
+            # data_list.append(data)
+
+        return data_list
 
     def process(self):
         trainval = []
