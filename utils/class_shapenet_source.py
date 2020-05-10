@@ -150,6 +150,18 @@ class ShapeNet_test(InMemoryDataset):
 
         for name in filenames:
             cat = name.split(osp.sep)[0]
+            #split the path according to '/' or '\'
+            # name.split(osp.sep) : ['02958343', '4773cf28df771861b112e5ac235c21b7.txt']
+
+            # print('cat')
+            
+            # 02691156
+            # b4b1b113173a6ec6bbf3143b1cb6076a.txt
+            # print(name.split(osp.sep)[0])
+            # print(name.split(osp.sep)[1])
+
+            # print(name.split(osp.sep))
+            
             if cat not in categories_ids:
                 continue
 

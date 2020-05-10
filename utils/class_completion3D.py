@@ -50,8 +50,8 @@ class completion3D_class(InMemoryDataset):
             final dataset. (default: :obj:`None`)
     """
 
-    url = ('http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip'
-           'dataset2019.zip')
+    url = ('http://download.cs.stanford.edu/downloads/completion3d/'
+            'dataset2019.zip')
 
     category_ids = {
         'plane': '02691156',
@@ -125,14 +125,14 @@ class completion3D_class(InMemoryDataset):
     def raw_file_names(self):
         return list(self.category_ids.values()) + ['train_test_split']
 
-    @property
-    # naming, eg : cha_air_car_test.pt, cha_air_car_train.pt
-    def processed_file_names(self):
-        cats = '_'.join([cat[:3].lower() for cat in self.categories])
-        return [
-            os.path.join('{}_{}.pt'.format(cats, split))
-            for split in ['train', 'val', 'test', 'trainval']
-        ]
+    # @property
+    # # naming the pt files, eg : cha_air_car_test.pt, cha_air_car_train.pt
+    # def processed_file_names(self):
+    #     cats = '_'.join([cat[:3].lower() for cat in self.categories])
+    #     return [
+    #         os.path.join('{}_{}.pt'.format(cats, split))
+    #         for split in ['train', 'val', 'test', 'trainval']
+    #     ]
 
     def download(self):
         path = download_url(self.url, self.root)
@@ -142,51 +142,57 @@ class completion3D_class(InMemoryDataset):
         name = self.url.split('/')[-1].split('.')[0]
         os.rename(osp.join(self.root, name), self.raw_dir)
 
-    def process_filenames(self, filenames):
-        data_list = []
-        # categories_ids :
-        # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
-        # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
-        categories_ids = [self.category_ids[cat] for cat in self.categories]
-        # i : 0 -> num of classes; 
-        # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
-        # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
-        # : 10, '04401088': 11, '04530566': 12}
-        cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
+    # def process_filenames(self, filenames):
+    #     data_list = []
+    #     # categories_ids :
+    #     # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
+    #     # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
+    #     categories_ids = [self.category_ids[cat] for cat in self.categories]
+    #     # i : 0 -> num of classes; 
+    #     # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
+    #     # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
+    #     # : 10, '04401088': 11, '04530566': 12}
+    #     cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
 
-        for name in filenames:
-            cat = name.split(osp.sep)[0]
-            if cat not in categories_ids:
-                continue
+    #     #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
+    #     #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
 
-            data = read_txt_array(osp.join(self.raw_dir, name))
-            pos = data[:, :3]
-            x = data[:, 3:6]
-            y = data[:, -1].type(torch.long)
-            data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
-            if self.pre_filter is not None and not self.pre_filter(data):
-                continue
-            if self.pre_transform is not None:
-                data = self.pre_transform(data)
-            data_list.append(data)
+    #     for name in filenames:
+    #         cat = name.split(osp.sep)[0]
+    #         if cat not in categories_ids:
+    #             continue
+    #         fx = h5py.File(osp.join(osp.join(self.raw_dir, 'train/partial'), name))
 
-        return data_list
 
-    def process(self):
-        trainval = []
-        for i, split in enumerate(['train', 'val', 'test']):
-            path = osp.join(self.raw_dir, 'train_test_split',
-                            f'shuffled_{split}_file_list.json')
-            with open(path, 'r') as f:
-                filenames = [
-                    osp.sep.join(name.split('/')[1:]) + '.txt'
-                    for name in json.load(f)
-                ]  # Removing first directory.
-            data_list = self.process_filenames(filenames)
-            if split == 'train' or split == 'val':
-                trainval += data_list
-            torch.save(self.collate(data_list), self.processed_paths[i])
-        torch.save(self.collate(trainval), self.processed_paths[3])
+
+    #         data = read_txt_array(osp.join(self.raw_dir, name))
+    #         pos = data[:, :3]
+    #         x = data[:, 3:6]
+    #         y = data[:, -1].type(torch.long)
+    #         data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
+    #         if self.pre_filter is not None and not self.pre_filter(data):
+    #             continue
+    #         if self.pre_transform is not None:
+    #             data = self.pre_transform(data)
+    #         data_list.append(data)
+
+    #     return data_list
+
+    # def process(self):
+    #     trainval = []
+    #     for i, split in enumerate(['train', 'val', 'test']):
+    #         path = osp.join(self.raw_dir, 'train_test_split',
+    #                         f'shuffled_{split}_file_list.json')
+    #         with open(path, 'r') as f:
+    #             filenames = [
+    #                 osp.sep.join(name.split('/')[1:]) + '.txt'
+    #                 for name in json.load(f)
+    #             ]  # Removing first directory.
+    #         data_list = self.process_filenames(filenames)
+    #         if split == 'train' or split == 'val':
+    #             trainval += data_list
+    #         torch.save(self.collate(data_list), self.processed_paths[i])
+    #     torch.save(self.collate(trainval), self.processed_paths[3])
 
     def __repr__(self):
         return '{}({}, categories={})'.format(self.__class__.__name__,

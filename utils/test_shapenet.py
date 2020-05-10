@@ -16,6 +16,7 @@ from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
 from utils.class_shapenet_source import *
+from utils.class_completion3D import *
 
 import h5py
 
@@ -24,27 +25,33 @@ def load_dataset(args):
     # TODO convert .h5 to .txt and use Completion3D_Dataset?
     # convert : https://gist.github.com/andrewfowlie/da173e2a476945a96039fb14e8b3a38a
     if args.dataset == 'completion3D':
-        # pre_transform = T.NormalizeScale()
-        # if args.randRotY:
-        #     transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
-        # else:
-        #     transform =T.FixedPoints(args.num_pts)
+
+        pre_transform = T.NormalizeScale()
+        if args.randRotY:
+            transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+        else:
+            transform =T.FixedPoints(args.num_pts)
         
         
-        #set paths
+        # #set paths
+        # categories = args.categories.split(',')
+        # path_train_x = '../data_root/dataset2019/shapenet/train/partial/03001627'
+        # path_train_y = '../data_root/dataset2019/shapenet/train/gt/03001627'
+
+        # # create dataLoader objects
+        # x_train_dataset, y_train_dataset = load_h5(path_train_x, path_train_y, size=TRAIN_SIZE)
+        # train_dataloader = DataLoader(TensorDataset(x_train_dataset, y_train_dataset), 
+        #                               batch_size=bs, shuffle=True, num_workers=8, drop_last=True)
+
+        # train_dataloader = WrappedDataLoader(train_dataloader, preprocess)
+
+        # x_test_dataset, y_test_dataset
+        # test_dataloader
+
+        
         categories = args.categories.split(',')
-        path_train_x = '../data_root/dataset2019/shapenet/train/partial/03001627'
-        path_train_y = '../data_root/dataset2019/shapenet/train/gt/03001627'
-
-        # create dataLoader objects
-        x_train_dataset, y_train_dataset = load_h5(path_train_x, path_train_y, size=TRAIN_SIZE)
-        train_dataloader = DataLoader(TensorDataset(x_train_dataset, y_train_dataset), 
-                                      batch_size=bs, shuffle=True, num_workers=8, drop_last=True)
-
-        train_dataloader = WrappedDataLoader(train_dataloader, preprocess)
-
-        x_test_dataset, y_test_dataset
-        test_dataloader
+        train_dataset = completion3D_class('../data_root/shapenet', categories, split='train',
+                            include_normals=False, pre_transform=pre_transform, transform=transform)
  
     # load ShapeNet dataset
     if args.dataset == 'shapenet':
@@ -64,16 +71,16 @@ def load_dataset(args):
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
                                      num_workers=8, drop_last=True)
 
-        print(train_dataset)
-        print(train_dataset.categories)
-        print(train_dataset.processed_file_names)
-        print(train_dataset.raw_file_names)
-        print(len(train_dataset))
-        print(train_dataset.__init__)
-        print(train_dataset.__repr__)
-        print(train_dataset.num_classes)
-        print(train_dataset.num_node_features)
-        print(train_dataset[0])
+        # print(train_dataset)
+        # print(train_dataset.categories)
+        # print(train_dataset.processed_file_names)
+        # print(train_dataset.raw_file_names)
+        # print(len(train_dataset))
+        # print(train_dataset.__init__)
+        # print(train_dataset.__repr__)
+        # print(train_dataset.num_classes)
+        # print(train_dataset.num_node_features)
+        # print(train_dataset[0])
         print('test h5')
         fx = h5py.File('../data_root/1a9bc7dd64da10f344ebbc705ad8c07.h5', 'r')
         datax = torch.tensor(fx['data'])
@@ -86,31 +93,30 @@ def load_dataset(args):
         print(fx.keys())
 
 
-        category_ids = {
-            'plane': '02691156',
-            'bench': '02828884',
-            'cabinet': '02933112',
-            'car': '02958343',
-            'chair': '03001627',
-            'monitor': '03211117',
-            'lamp': '03636649',
-            'speaker': '03691459',
-            'firearm': '04090263',
-            'couch': '04256520',
-            'table': '04379243',
-            'cellphone': '04401088',
-            'watercraft': '04530566',
-        }
-        categories = list(category_ids.keys())
-        categories_ids = [category_ids[cat] for cat in categories]
-        cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
-        print(categories_ids)
-        print(cat_idx)
-        # test how to get the xxx in xxx.h5
-        name = '11abf3b20f05ed8ea902d6f4ac8edb5f4.h5'
-        cat = name.split(osp.sep)[0]
-        print(cat)
-        # osp???
+        # category_ids = {
+        #     'plane': '02691156',
+        #     'bench': '02828884',
+        #     'cabinet': '02933112',
+        #     'car': '02958343',
+        #     'chair': '03001627',
+        #     'monitor': '03211117',
+        #     'lamp': '03636649',
+        #     'speaker': '03691459',
+        #     'firearm': '04090263',
+        #     'couch': '04256520',
+        #     'table': '04379243',
+        #     'cellphone': '04401088',
+        #     'watercraft': '04530566',
+        # }
+        # categories = list(category_ids.keys())
+        # categories_ids = [category_ids[cat] for cat in categories]
+        # cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
+        # print(categories_ids)
+        # print(cat_idx)
+        # # test how to get the xxx in xxx.h5
+        # name = '11abf3b20f05ed8ea902d6f4ac8edb5f4.h5'
+        # cat = name.split(osp.sep)[0]
+        # print(cat)
 
         # train_dataset.categories
         # train_dataset.processed_file_names
