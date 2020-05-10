@@ -166,7 +166,9 @@ class completion3D_class(InMemoryDataset):
 
             if cat not in categories_ids:
                 continue
-
+            
+            # TODO the meaning of the three cols in partial and gt
+            # what should pos, x, y be assigned
             fx = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name))
             x = torch.tensor(fx['data'])
 
@@ -180,6 +182,7 @@ class completion3D_class(InMemoryDataset):
                 continue
             if self.pre_transform is not None:
                 data = self.pre_transform(data)
+            data_list.append(data)
 
             # data = read_txt_array(osp.join(self.raw_dir, name))
             # pos = data[:, :3]
