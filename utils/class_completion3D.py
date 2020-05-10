@@ -139,8 +139,12 @@ class completion3D_class(InMemoryDataset):
         extract_zip(path, self.root)
         os.unlink(path)
         shutil.rmtree(self.raw_dir)
-        name = self.url.split('/')[-1].split('.')[0]
+        # name = self.url.split('/')[-1].split('.')[0]
+        name = 'shapenet'
         os.rename(osp.join(self.root, name), self.raw_dir)
+        # print(osp.join(self.root, name))
+        # print(self.raw_dir)
+        print('end of download')
 
     # def process_filenames(self, filenames):
     #     data_list = []
