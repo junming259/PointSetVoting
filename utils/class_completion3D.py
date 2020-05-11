@@ -179,7 +179,7 @@ class completion3D_class(InMemoryDataset):
             pos = None
 
             fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
-            pos = torch.tensor(fpos['data'])
+            pos = torch.tensor(fpos['data'], dtype=torch.double)
 
             # print('PATH IS' )
             # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
@@ -190,7 +190,7 @@ class completion3D_class(InMemoryDataset):
 
             if split_in_loop == 'train' or split_in_loop == 'val':
                 fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
-                y = torch.tensor(fy['data'])
+                y = torch.tensor(fy['data'], dtype=torch.double)
 
             # there are only three cols, no gt in test
             data = None
