@@ -161,16 +161,17 @@ class completion3D_class(InMemoryDataset):
         # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
         # : 10, '04401088': 11, '04530566': 12}
         cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
-
         #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
         #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
         i = 0
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if split_in_loop == 'train' or split_in_loop == 'val' and cat not in categories_ids:
-                print('cat not in categories_ids')
-                continue
+            if split_in_loop == 'train' or split_in_loop == 'val':
+                if cat not in categories_ids:
+                    # print('cat not in categories_ids')
+                    # print(cat)
+                    continue
 
             # TODO the meaning of the three cols in partial and gt
             # what should pos, x, y be assigned
@@ -192,6 +193,7 @@ class completion3D_class(InMemoryDataset):
                 y = torch.tensor(fy['data'])
 
             # there are only three cols, no gt in test
+            data = None
             if split_in_loop == 'train' or split_in_loop == 'val':
                 data = Data(pos=pos, y = y, category=cat_idx[cat])
             else:
@@ -218,7 +220,7 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['test']):
+        for i, split in enumerate(['train','val','test']):
             print('in the loop')
             path = osp.join(self.raw_dir, f'{split}.list')
             with open(path, 'r') as f:
@@ -230,14 +232,14 @@ class completion3D_class(InMemoryDataset):
                 ]
             # print(filenames)
             data_list = self.process_filenames(filenames, split)
-            print('data_list')
-            print(data_list)
+            # print('data_list')
+            # print(data_list)
             # print(filenames)
             if split == 'train' or split == 'val':
                 trainval += data_list
             torch.save(self.collate(data_list), self.processed_paths[i])
-            print('i value')
-            print(i)
+            # print('i value')
+            # print(i)
 
         print('end of process()')
         torch.save(self.collate(trainval), self.processed_paths[3])
