@@ -15,7 +15,7 @@ from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
-
+from utils.class_completion3D import *
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 torch.backends.cudnn.benchmark = False
@@ -237,6 +237,24 @@ def load_dataset(args):
                                  pre_transform=pre_transform, transform=transform)
         test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
                                  pre_transform=pre_transform, transform=transform)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
+                                      num_workers=8, drop_last=True)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+                                     num_workers=8, drop_last=True)
+                                     
+    # load completion3D dataset
+    if args.dataset == 'completion3D':
+        pre_transform = T.NormalizeScale()
+        if args.randRotY:
+            transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
+        else:
+            transform =T.FixedPoints(args.num_pts)
+        
+        categories = args.categories.split(',')
+        train_dataset = completion3D_class('../data_root/shapenet', categories, split='trainval',
+                            include_normals=False, pre_transform=pre_transform, transform=transform)
+        test_dataloader = completion3D_class('../data_root/shapenet', categories, split='test',
+                            include_normals=False, pre_transform=pre_transform, transform=transform)
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=8, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
