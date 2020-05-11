@@ -2,7 +2,7 @@ import os
 import os.path as osp
 import shutil
 import json
-
+import h5py
 import torch
 
 from torch_geometric.data import (Data, InMemoryDataset, download_url,
@@ -97,7 +97,9 @@ class completion3D_class(InMemoryDataset):
         if isinstance(categories, str):
             categories = [categories]
         assert all(category in self.category_ids for category in categories)
+
         self.categories = categories
+        self.split = split
         super(completion3D_class, self).__init__(root, transform, pre_transform,
                                        pre_filter)
 
@@ -122,8 +124,10 @@ class completion3D_class(InMemoryDataset):
         #     self.y_mask[i, labels] = 1
 
     @property
+    # all the folder names except xxx.txt
     def raw_file_names(self):
-        return list(self.category_ids.values()) + ['train_test_split']
+        # return list(self.category_ids.values()) + ['train_test_split']
+        return list(['train', 'test', 'val', 'train.list', 'test.list', 'val.list'])
 
     @property
     # naming the pt files, eg : cha_air_car_test.pt, cha_air_car_train.pt
@@ -160,7 +164,7 @@ class completion3D_class(InMemoryDataset):
 
         #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
         #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
-
+        i = 0
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
@@ -169,21 +173,28 @@ class completion3D_class(InMemoryDataset):
             
             # TODO the meaning of the three cols in partial and gt
             # what should pos, x, y be assigned
-            fx = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name))
-            x = torch.tensor(fx['data'])
+            fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name), 'r')
+            # print('PATH IS ' )
+            # print(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name))
+            pos = torch.tensor(fpos['data'])
+            # print(pos)
+
+            fy = None
+            y = None
 
             if self.split == 'train' or self.split == 'val':
-                # TODO trainval???
-                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/gt'), name))
+                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/gt'), name), 'r')
                 y = torch.tensor(fy['data'])
 
-            data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
+            #there are only three cols
+            data = Data(pos=pos, y = y, category=cat_idx[cat])
+            # print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:
                 data = self.pre_transform(data)
             data_list.append(data)
-
+            i = i + 1
             # data = read_txt_array(osp.join(self.raw_dir, name))
             # pos = data[:, :3]
             # x = data[:, 3:6]
@@ -202,11 +213,15 @@ class completion3D_class(InMemoryDataset):
         for i, split in enumerate(['train', 'val', 'test']):
             path = osp.join(self.raw_dir, f'{split}.list')
             with open(path, 'r') as f:
-                filenames = [
-                    osp.seq.join(name + '.h5')
+                tmp = ".h5"
+                # name[0: -1]: delete '\n' in name
+                filenames = [                    
+                    (name[0: -1] + tmp)
                     for name in f
                 ]
             data_list = self.process_filenames(filenames)
+            print(data_list)
+            # print(filenames)
             if split == 'train' or split == 'val':
                 trainval += data_list
             torch.save(self.collate(data_list), self.processed_paths[i])

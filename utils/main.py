@@ -241,7 +241,7 @@ def load_dataset(args):
                                       num_workers=8, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
                                      num_workers=8, drop_last=True)
-                                     
+
     # load completion3D dataset
     if args.dataset == 'completion3D':
         pre_transform = T.NormalizeScale()
@@ -251,7 +251,7 @@ def load_dataset(args):
             transform =T.FixedPoints(args.num_pts)
         
         categories = args.categories.split(',')
-        train_dataset = completion3D_class('../data_root/shapenet', categories, split='trainval',
+        train_dataset = completion3D_class('../data_root/shapenet', categories, split='train',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
         test_dataloader = completion3D_class('../data_root/shapenet', categories, split='test',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
