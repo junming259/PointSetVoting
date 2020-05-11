@@ -82,15 +82,15 @@ def load_dataset(args):
         # print(train_dataset.num_node_features)
         # print(train_dataset[0])
         print('test h5')
-        fx = h5py.File('../data_root/1a9bc7dd64da10f344ebbc705ad8c07.h5', 'r')
+        fx = h5py.File('../data_root/1a04e3eab45ca15dd86060f189eb133.h5', 'r')
         datax = torch.tensor(fx['data'])
         print(datax)
-        print(datax.shape)
-        fy = h5py.File('../data_root/11abf3b20f05ed8ea902d6f4ac8edb5f4.h5', 'r')
-        datay = torch.tensor(fy['data'])
-        print(datay)
-        print(datay.shape)
-        print(fx.keys())
+        # print(datax.shape)
+        # fy = h5py.File('../data_root/11abf3b20f05ed8ea902d6f4ac8edb5f4.h5', 'r')
+        # datay = torch.tensor(fy['data'])
+        # print(datay)
+        # print(datay.shape)
+        # print(fx.keys())
 
 
         # category_ids = {

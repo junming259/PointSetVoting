@@ -32,9 +32,16 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
     global i
 
     for j, data in enumerate(loader, 0):
+        # data.pos = data.pos.double()
+        # data.y = data.y.double()
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
-
+        # print(pos)
+        # pos = pos.float()
+        # label = label.double()
+        # batch = batch.double()
+        # print(batch)
+        # print(torch.type(pos))
         # training
         model.zero_grad()
         generated_pc, fidelity, score = model(None, pos, batch)

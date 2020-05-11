@@ -177,9 +177,10 @@ class completion3D_class(InMemoryDataset):
             # what should pos, x, y be assigned
             fpos = None
             pos = None
-
+            # type of weight is float, so the type of pos should be float
+            # output = input.matmul(weight.t())
             fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
-            pos = torch.tensor(fpos['data'], dtype=torch.double)
+            pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
             # print('PATH IS' )
             # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
@@ -190,7 +191,7 @@ class completion3D_class(InMemoryDataset):
 
             if split_in_loop == 'train' or split_in_loop == 'val':
                 fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
-                y = torch.tensor(fy['data'], dtype=torch.double)
+                y = torch.tensor(fy['data'], dtype=torch.float32)
 
             # there are only three cols, no gt in test
             data = None
