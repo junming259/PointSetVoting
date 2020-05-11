@@ -168,15 +168,20 @@ class completion3D_class(InMemoryDataset):
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if cat not in categories_ids:
+            if split_in_loop == 'train' or split_in_loop == 'val' and cat not in categories_ids:
+                print('cat not in categories_ids')
                 continue
-            
+
             # TODO the meaning of the three cols in partial and gt
             # what should pos, x, y be assigned
+            fpos = None
+            pos = None
+
             fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
-            # print('PATH IS ' )
-            # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
             pos = torch.tensor(fpos['data'])
+
+            print('PATH IS' )
+            print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
             # print(pos)
 
             fy = None
@@ -187,8 +192,11 @@ class completion3D_class(InMemoryDataset):
                 y = torch.tensor(fy['data'])
 
             #there are only three cols
-            data = Data(pos=pos, y = y, category=cat_idx[cat])
-            # print(data)
+            if split_in_loop == 'train' or split_in_loop == 'val':
+                data = Data(pos=pos, y = y, category=cat_idx[cat])
+            else:
+                data = Data(pos=pos, category=cat_idx[cat])
+            print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:
@@ -210,7 +218,7 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['train', 'val', 'test']):
+        for i, split in enumerate(['test']):
             print('in the loop')
             path = osp.join(self.raw_dir, f'{split}.list')
             with open(path, 'r') as f:
@@ -220,7 +228,9 @@ class completion3D_class(InMemoryDataset):
                     (name[0: -1] + tmp)
                     for name in f
                 ]
+            # print(filenames)
             data_list = self.process_filenames(filenames, split)
+            print('data_list')
             print(data_list)
             # print(filenames)
             if split == 'train' or split == 'val':
