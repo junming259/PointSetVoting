@@ -150,7 +150,7 @@ class completion3D_class(InMemoryDataset):
         # print(self.raw_dir)
         print('end of download')
 
-    def process_filenames(self, filenames):
+    def process_filenames(self, filenames, split_in_loop):
         data_list = []
         # categories_ids :
         # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
@@ -173,17 +173,17 @@ class completion3D_class(InMemoryDataset):
             
             # TODO the meaning of the three cols in partial and gt
             # what should pos, x, y be assigned
-            fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name), 'r')
+            fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
             # print('PATH IS ' )
-            # print(osp.join(osp.join(self.raw_dir, f'{self.split}/partial'), name))
+            # print(osp.join(osp.join(self.raw_dir, f'{split}/partial'), name))
             pos = torch.tensor(fpos['data'])
             # print(pos)
 
             fy = None
             y = None
 
-            if self.split == 'train' or self.split == 'val':
-                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{self.split}/gt'), name), 'r')
+            if split_in_loop == 'train' or split_in_loop == 'val':
+                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
                 y = torch.tensor(fy['data'])
 
             #there are only three cols
@@ -219,7 +219,7 @@ class completion3D_class(InMemoryDataset):
                     (name[0: -1] + tmp)
                     for name in f
                 ]
-            data_list = self.process_filenames(filenames)
+            data_list = self.process_filenames(filenames, split)
             print(data_list)
             # print(filenames)
             if split == 'train' or split == 'val':
