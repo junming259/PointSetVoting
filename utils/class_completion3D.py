@@ -175,7 +175,7 @@ class completion3D_class(InMemoryDataset):
             # what should pos, x, y be assigned
             fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
             # print('PATH IS ' )
-            # print(osp.join(osp.join(self.raw_dir, f'{split}/partial'), name))
+            # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
             pos = torch.tensor(fpos['data'])
             # print(pos)
 
@@ -211,6 +211,7 @@ class completion3D_class(InMemoryDataset):
     def process(self):
         trainval = []
         for i, split in enumerate(['train', 'val', 'test']):
+            print('in the loop')
             path = osp.join(self.raw_dir, f'{split}.list')
             with open(path, 'r') as f:
                 tmp = ".h5"
@@ -225,6 +226,10 @@ class completion3D_class(InMemoryDataset):
             if split == 'train' or split == 'val':
                 trainval += data_list
             torch.save(self.collate(data_list), self.processed_paths[i])
+            print('i value')
+            print(i)
+
+        print('end of process()')
         torch.save(self.collate(trainval), self.processed_paths[3])
 
 
