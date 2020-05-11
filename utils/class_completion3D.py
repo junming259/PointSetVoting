@@ -180,8 +180,8 @@ class completion3D_class(InMemoryDataset):
             fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
             pos = torch.tensor(fpos['data'])
 
-            print('PATH IS' )
-            print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
+            # print('PATH IS' )
+            # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
             # print(pos)
 
             fy = None
@@ -191,12 +191,12 @@ class completion3D_class(InMemoryDataset):
                 fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
                 y = torch.tensor(fy['data'])
 
-            #there are only three cols
+            # there are only three cols, no gt in test
             if split_in_loop == 'train' or split_in_loop == 'val':
                 data = Data(pos=pos, y = y, category=cat_idx[cat])
             else:
-                data = Data(pos=pos, category=cat_idx[cat])
-            print(data)
+                data = Data(pos=pos)
+            # print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:
