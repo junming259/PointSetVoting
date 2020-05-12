@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='4,5,6,7'"' \
+  --gpus '"device='0,1'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/completion3D \
   -v $(pwd)/../utils:/cpc/utils \
