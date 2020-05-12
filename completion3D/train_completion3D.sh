@@ -2,7 +2,7 @@
 docker run -it --rm \
   --gpus '"device='0,1'"' \
   -u $(id -u):$(id -g) \
-  -u SKIMAGE_DATADIR=/tmp \
+  -e SKIMAGE_DATADIR=/tmp \
   -v $(pwd):/cpc/completion3D \
   -v $(pwd)/../utils:/cpc/utils \
   -v $(pwd)/../data_root:/cpc/data_root \
