@@ -1,6 +1,7 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0'"' \
+  --gpus '"device='4,5,6,7'"' \
+  -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/completion3D \
   -v $(pwd)/../utils:/cpc/utils \
   -v $(pwd)/../data_root:/cpc/data_root \
@@ -14,8 +15,8 @@ docker run -it --rm \
   --num_pts_observed 1024 \
   --lr 0.0002 \
   --step_size 250 \
-  --max_epoch 600 \
-  --bsize 2 \
+  --max_epoch 5 \
+  --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
   --num_subpc_train 64 \
@@ -26,4 +27,5 @@ docker run -it --rm \
   --weight_fidelity 0.1 \
   --is_vote \
   --is_pCompletion \
+  --is_fidReg \
   --is_simuOcc \
