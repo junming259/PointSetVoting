@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/completion3D \
   completion-pc \
   python ../utils/main.py \
-  --model_name completion_shapenet \
+  --model_name completion3D_benchmark_model \
   --dataset completion3D \
   --categories chair,plane,car \
   --num_pts 2048 \
