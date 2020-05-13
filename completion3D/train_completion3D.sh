@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0,1'"' \
+  --gpus '"device='0,1,2,3'"' \
   -u $(id -u):$(id -g) \
   -e SKIMAGE_DATADIR=/tmp \
   -v $(pwd):/cpc/completion3D \
