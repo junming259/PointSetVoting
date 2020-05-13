@@ -1,20 +1,21 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0'"' \
+  --gpus '"device='0,1,2,3'"' \
   -u $(id -u):$(id -g) \
-  -v $(pwd):/cpc/shapenet \
+  -e SKIMAGE_DATADIR=/tmp \
+  -v $(pwd):/cpc/completion3D \
   -v $(pwd)/../utils:/cpc/utils \
   -v $(pwd)/../data_root:/cpc/data_root \
-  -w /cpc/shapenet \
+  -w /cpc/completion3D \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/completion_shapenet \
-  --dataset shapenet \
-  --categories Chair,Airplane,Car \
+  --checkpoint checkpoint/completion3D_benchmark_model \
+  --dataset completion3D \
+  --categories chair,plane,car \
   --num_pts 2048 \
   --num_pts_observed 1024 \
-  --bsize 32 \
+  --bsize 16 \
   --radius 0.25 \
   --bottleneck 512 \
   --num_subpc_train 64 \
