@@ -105,10 +105,10 @@ class completion3D_class(InMemoryDataset):
 
         if split == 'train':
             path = self.processed_paths[0]
-        elif split == 'val':
-            path = self.processed_paths[1]
+        # elif split == 'val':
+        #     path = self.processed_paths[1]
         elif split == 'test':
-            path = self.processed_paths[2]
+            path = self.processed_paths[1]
         elif split == 'trainval':
             path = self.processed_paths[3]
         else:
