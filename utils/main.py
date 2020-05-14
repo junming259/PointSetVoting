@@ -258,7 +258,7 @@ def load_dataset(args):
             transform =T.FixedPoints(args.num_pts)
         
         categories = args.categories.split(',')
-        train_dataset = completion3D_class('../data_root/shapenet', categories, split='trainval',
+        train_dataset = completion3D_class('../data_root/shapenet', categories, split='train',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
         print('Finished train_dataset')
         test_dataset = completion3D_class('../data_root/shapenet', categories, split='test',

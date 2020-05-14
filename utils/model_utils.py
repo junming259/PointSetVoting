@@ -78,8 +78,10 @@ def chamfer_loss(x, y):
     """
     x = x.unsqueeze(1)
     y = y.unsqueeze(2)
-    # diff = (x - y).norm(dim=-1)
-    diff = (x - y).pow(2).sum(dim=-1)
+    #train err
+    diff = (x - y).norm(dim=-1)
+    #eval err
+    # diff = (x - y).pow(2).sum(dim=-1)
     dis1 = diff.min(dim=1)[0].mean(dim=1)
     dis2 = diff.min(dim=2)[0].mean(dim=1)
     dis = dis1 + dis2

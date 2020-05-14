@@ -16,7 +16,7 @@ docker run -it --rm \
   --num_pts_observed 1024 \
   --lr 0.0002 \
   --step_size 250 \
-  --max_epoch 5 \
+  --max_epoch 600 \
   --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
@@ -28,5 +28,4 @@ docker run -it --rm \
   --weight_fidelity 0.1 \
   --is_vote \
   --is_pCompletion \
-  --is_fidReg \
   --is_simuOcc \

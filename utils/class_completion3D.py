@@ -167,7 +167,7 @@ class completion3D_class(InMemoryDataset):
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if split_in_loop == 'train' or split_in_loop == 'val':
+            if split_in_loop == 'train':
                 if cat not in categories_ids:
                     # print('cat not in categories_ids')
                     # print(cat)
@@ -179,8 +179,9 @@ class completion3D_class(InMemoryDataset):
             pos = None
             # type of weight is float, so the type of pos should be float
             # output = input.matmul(weight.t())
-            fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
-            pos = torch.tensor(fpos['data'], dtype=torch.float32)
+            if split_in_loop == 'train':
+                fpos = h5py.File(osp.join(osp.join(self.raw_dir, 'train/gt'), name), 'r')
+                pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
             # print('PATH IS' )
             # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
@@ -189,16 +190,18 @@ class completion3D_class(InMemoryDataset):
             fy = None
             y = None
 
-            if split_in_loop == 'train' or split_in_loop == 'val':
-                fy = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
+            if split_in_loop == 'test':
+                fpos = h5py.File(osp.join(osp.join(self.raw_dir, 'val/partial'), name), 'r')
+                pos = torch.tensor(fpos['data'], dtype=torch.float32)
+                fy = h5py.File(osp.join(osp.join(self.raw_dir, 'val/gt'), name), 'r')
                 y = torch.tensor(fy['data'], dtype=torch.float32)
 
             # there are only three cols, no gt in test
             data = None
-            if split_in_loop == 'train' or split_in_loop == 'val':
-                data = Data(pos=pos, y = y, category=cat_idx[cat])
+            if split_in_loop == 'train':
+                data = Data(pos=pos, category=cat_idx[cat])
             else:
-                data = Data(pos=pos)
+                data = Data(pos=pos, y = y, category=cat_idx[cat])
             # print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue

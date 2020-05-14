@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0,1,2,3'"' \
+  --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -e SKIMAGE_DATADIR=/tmp \
   -v $(pwd):/cpc/completion3D \
@@ -24,5 +24,4 @@ docker run -it --rm \
   --num_contrib_feats_test 16 \
   --is_vote \
   --is_pCompletion \
-  --is_fidReg \
   --is_simuOcc \
