@@ -135,7 +135,7 @@ class completion3D_class(InMemoryDataset):
         cats = '_'.join([cat[:3].lower() for cat in self.categories])
         return [
             os.path.join('{}_{}.pt'.format(cats, split))
-            for split in ['train', 'val', 'test', 'trainval']
+            for split in ['train','test']
         ]
 
     def download(self):
