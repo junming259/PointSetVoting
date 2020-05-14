@@ -201,7 +201,7 @@ class completion3D_class(InMemoryDataset):
             if split_in_loop == 'train':
                 data = Data(pos=pos, category=cat_idx[cat])
             else:
-                data = Data(pos=pos, y = y, category=cat_idx[cat])
+                data = Data(pos=pos, y = y)
             # print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
@@ -224,7 +224,7 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['train','val','test']):
+        for i, split in enumerate(['train','test']):
             print('in the loop')
             path = osp.join(self.raw_dir, f'{split}.list')
             with open(path, 'r') as f:
@@ -239,14 +239,17 @@ class completion3D_class(InMemoryDataset):
             # print('data_list')
             # print(data_list)
             # print(filenames)
-            if split == 'train' or split == 'val':
-                trainval += data_list
-            torch.save(self.collate(data_list), self.processed_paths[i])
+            # if split == 'train' or split == 'val':
+            #     trainval += data_list
+            if split == 'train':
+                torch.save(self.collate(data_list), self.processed_paths[0])
+            if split == 'test':
+                torch.save(self.collate(data_list), self.processed_paths[2])
             # print('i value')
             # print(i)
 
         print('end of process()')
-        torch.save(self.collate(trainval), self.processed_paths[3])
+        # torch.save(self.collate(trainval), self.processed_paths[3])
 
 
         #     path = osp.join(self.raw_dir, 'train_test_split',
