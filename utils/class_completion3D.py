@@ -248,7 +248,7 @@ class completion3D_class(InMemoryDataset):
             if split == 'train':
                 torch.save(self.collate(data_list), self.processed_paths[0])
             if split == 'test':
-                torch.save(self.collate(data_list), self.processed_paths[2])
+                torch.save(self.collate(data_list), self.processed_paths[1])
             # print('i value')
             # print(i)
 
