@@ -226,7 +226,11 @@ class completion3D_class(InMemoryDataset):
         trainval = []
         for i, split in enumerate(['train','test']):
             print('in the loop')
-            path = osp.join(self.raw_dir, f'{split}.list')
+            path = None
+            if split == 'train':
+                path = osp.join(self.raw_dir, f'{split}.list')
+            if split == 'test':
+                path = osp.join(self.raw_dir, 'val.list')
             with open(path, 'r') as f:
                 tmp = ".h5"
                 # name[0: -1]: delete '\n' in name
