@@ -15,7 +15,7 @@ docker run -it --rm \
   --categories chair,plane,car \
   --num_pts 2048 \
   --num_pts_observed 1024 \
-  --bsize 16 \
+  --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
   --num_subpc_train 64 \
