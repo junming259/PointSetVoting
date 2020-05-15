@@ -20,8 +20,7 @@ docker run -it --rm \
   --bottleneck 512 \
   --num_subpc_train 64 \
   --num_contrib_feats_train 16 \
-  --num_subpc_test 16 \
-  --num_contrib_feats_test 16 \
+  --num_subpc_test 64 \
+  --num_contrib_feats_test 64 \
   --is_vote \
   --is_pCompletion \
-  --is_simuOcc \
