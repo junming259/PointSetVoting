@@ -14,7 +14,7 @@ docker run -it --rm \
   --dataset completion3D \
   --categories chair,plane,car \
   --num_pts 2048 \
-  --num_pts_observed 1024 \
+  --num_pts_observed 2048 \
   --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
