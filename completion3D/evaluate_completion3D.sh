@@ -10,7 +10,7 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/completion3D_benchmark_model \
+  --checkpoint checkpoint/completion3D_benchmark_model_200epoch \
   --dataset completion3D \
   --categories chair,plane,car \
   --num_pts 2048 \
