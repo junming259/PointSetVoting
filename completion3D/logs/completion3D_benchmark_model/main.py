@@ -192,7 +192,8 @@ def evaluate(args, dataloader, save_dir):
 
         if args.is_pCompletion:
             # save the first sample results for visualization
-            pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            # pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
             pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
             contribution_pc = contribution_pc.cpu().detach().numpy()
             generated_pc = generated_pc.cpu().detach().numpy()[0]
@@ -251,7 +252,8 @@ def load_dataset(args):
 
     # load completion3D dataset
     if args.dataset == 'completion3D':
-        pre_transform = T.NormalizeScale()
+        # pre_transform = T.NormalizeScale()
+        pre_transform = None
         if args.randRotY:
             transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
         else:
