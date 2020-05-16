@@ -192,7 +192,8 @@ def evaluate(args, dataloader, save_dir):
 
         if args.is_pCompletion:
             # save the first sample results for visualization
-            pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            # pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
             pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
             contribution_pc = contribution_pc.cpu().detach().numpy()
             generated_pc = generated_pc.cpu().detach().numpy()[0]
