@@ -252,7 +252,8 @@ def load_dataset(args):
 
     # load completion3D dataset
     if args.dataset == 'completion3D':
-        pre_transform = T.NormalizeScale()
+        # pre_transform = T.NormalizeScale()
+        pre_transform = None
         if args.randRotY:
             transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
         else:
