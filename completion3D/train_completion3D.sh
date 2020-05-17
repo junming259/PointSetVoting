@@ -9,14 +9,14 @@ docker run -it --rm \
   -w /cpc/completion3D \
   completion-pc \
   python ../utils/main.py \
-  --model_name completion3D_benchmark_model_200epoch \
+  --model_name completion3D_benchmark_model_500epoch \
   --dataset completion3D \
   --categories chair,plane,car \
   --num_pts 2048 \
   --num_pts_observed 1024 \
   --lr 0.0002 \
   --step_size 250 \
-  --max_epoch 200 \
+  --max_epoch 500 \
   --bsize 32 \
   --radius 0.25 \
   --bottleneck 512 \
