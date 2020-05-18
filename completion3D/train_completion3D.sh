@@ -13,7 +13,7 @@ docker run -it --rm \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --num_pts 2048 \
-  --num_pts_observed 1024 \
+  --num_pts_observed 2048 \
   --lr 0.0004 \
   --step_size 200 \
   --max_epoch 500 \
