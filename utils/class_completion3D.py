@@ -167,7 +167,7 @@ class completion3D_class(InMemoryDataset):
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if split_in_loop == 'train':
+            if split_in_loop == 'train' or split_in_loop == 'test':
                 if cat not in categories_ids:
                     # print('cat not in categories_ids')
                     # print(cat)
@@ -201,7 +201,7 @@ class completion3D_class(InMemoryDataset):
             if split_in_loop == 'train':
                 data = Data(pos=pos, category=cat_idx[cat])
             else:
-                data = Data(pos=pos, y = y)
+                data = Data(pos=pos, y = y, category=cat_idx[cat])
             # print(data)
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
