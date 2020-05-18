@@ -10,7 +10,7 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/completion3D_benchmark_model_8ctg500epoch_lr4_r25 \
+  --checkpoint checkpoint/completion3D_benchmark_model_8ctg500epoch_r25 \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --num_pts 2048 \
