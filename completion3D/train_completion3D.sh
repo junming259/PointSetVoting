@@ -9,12 +9,12 @@ docker run -it --rm \
   -w /cpc/completion3D \
   completion-pc \
   python ../utils/main.py \
-  --model_name completion3D_benchmark_model_8ctg500epoch \
+  --model_name completion3D_benchmark_model_8ctg500epoch_lr4 \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --num_pts 2048 \
   --num_pts_observed 1024 \
-  --lr 0.0002 \
+  --lr 0.0004 \
   --step_size 200 \
   --max_epoch 500 \
   --bsize 32 \
@@ -22,10 +22,9 @@ docker run -it --rm \
   --bottleneck 1024 \
   --num_subpc_train 64 \
   --num_contrib_feats_train 16 \
-  --num_subpc_test 16 \
-  --num_contrib_feats_test 16 \
+  --num_subpc_test 64 \
+  --num_contrib_feats_test 64 \
   --weight_chamfer 1.0 \
   --weight_fidelity 0.1 \
   --is_vote \
   --is_pCompletion \
-  --is_simuOcc \
