@@ -105,10 +105,10 @@ class completion3D_class(InMemoryDataset):
 
         if split == 'train':
             path = self.processed_paths[0]
-        # elif split == 'val':
-        #     path = self.processed_paths[1]
-        elif split == 'test':
+        elif split == 'val':
             path = self.processed_paths[1]
+        elif split == 'test':
+            path = self.processed_paths[2]
         elif split == 'trainval':
             path = self.processed_paths[3]
         else:
@@ -135,7 +135,7 @@ class completion3D_class(InMemoryDataset):
         cats = '_'.join([cat[:3].lower() for cat in self.categories])
         return [
             os.path.join('{}_{}.pt'.format(cats, split))
-            for split in ['train','test']
+            for split in ['train', 'val', 'test', 'trainval']
         ]
 
     def download(self):
@@ -163,14 +163,11 @@ class completion3D_class(InMemoryDataset):
         cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
         #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
         #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
-        i = 0
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if split_in_loop == 'train' or split_in_loop == 'test':
+            if split_in_loop == 'train' or split_in_loop == 'val':
                 if cat not in categories_ids:
-                    # print('cat not in categories_ids')
-                    # print(cat)
                     continue
 
             # TODO the meaning of the three cols in partial and gt
@@ -179,8 +176,8 @@ class completion3D_class(InMemoryDataset):
             pos = None
             # type of weight is float, so the type of pos should be float
             # output = input.matmul(weight.t())
-            if split_in_loop == 'train':
-                fpos = h5py.File(osp.join(osp.join(self.raw_dir, 'train/gt'), name), 'r')
+            if split_in_loop == 'train' or split_in_loop == 'val':
+                fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
                 pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
             # print('PATH IS' )
@@ -198,7 +195,7 @@ class completion3D_class(InMemoryDataset):
 
             # there are only three cols, no gt in test
             data = None
-            if split_in_loop == 'train':
+            if split_in_loop == 'train' or split_in_loop == 'val':
                 data = Data(pos=pos, category=cat_idx[cat])
             else:
                 data = Data(pos=pos, y = y, category=cat_idx[cat])
@@ -208,66 +205,30 @@ class completion3D_class(InMemoryDataset):
             if self.pre_transform is not None:
                 data = self.pre_transform(data)
             data_list.append(data)
-            i = i + 1
-            # data = read_txt_array(osp.join(self.raw_dir, name))
-            # pos = data[:, :3]
-            # x = data[:, 3:6]
-            # y = data[:, -1].type(torch.long)
-            # data = Data(pos=pos, x=x, y=y, category=cat_idx[cat])
-            # if self.pre_filter is not None and not self.pre_filter(data):
-            #     continue
-            # if self.pre_transform is not None:
-            #     data = self.pre_transform(data)
-            # data_list.append(data)
 
         return data_list
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['train','test']):
+        for i, split in enumerate(['train', 'val', 'test']):
             print('in the loop')
             path = None
-            if split == 'train':
+            if split == 'train' or split == 'val':
                 path = osp.join(self.raw_dir, f'{split}.list')
             if split == 'test':
                 path = osp.join(self.raw_dir, 'val.list')
             with open(path, 'r') as f:
                 tmp = ".h5"
-                # name[0: -1]: delete '\n' in name
                 filenames = [                    
                     (name[0: -1] + tmp)
                     for name in f
                 ]
-            # print(filenames)
             data_list = self.process_filenames(filenames, split)
-            # print('data_list')
-            # print(data_list)
-            # print(filenames)
-            # if split == 'train' or split == 'val':
-            #     trainval += data_list
-            if split == 'train':
-                torch.save(self.collate(data_list), self.processed_paths[0])
-            if split == 'test':
-                torch.save(self.collate(data_list), self.processed_paths[1])
-            # print('i value')
-            # print(i)
-
+            if split == 'train' or split == 'val':
+                trainval += data_list
+            torch.save(self.collate(data_list), self.processed_paths[i])
+        torch.save(self.collate(trainval), self.processed_paths[3])
         print('end of process()')
-        # torch.save(self.collate(trainval), self.processed_paths[3])
-
-
-        #     path = osp.join(self.raw_dir, 'train_test_split',
-        #                     f'shuffled_{split}_file_list.json')
-        #     with open(path, 'r') as f:
-        #         filenames = [
-        #             osp.sep.join(name.split('/')[1:]) + '.txt'
-        #             for name in json.load(f)
-        #         ]  # Removing first directory.
-        #     data_list = self.process_filenames(filenames)
-        #     if split == 'train' or split == 'val':
-        #         trainval += data_list
-        #     torch.save(self.collate(data_list), self.processed_paths[i])
-        # torch.save(self.collate(trainval), self.processed_paths[3])
 
     def __repr__(self):
         return '{}({}, categories={})'.format(self.__class__.__name__,
