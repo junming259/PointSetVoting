@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import os
 import torch.nn.functional as F
+import torch_geometric.transforms as T
 
 from torch.nn import Linear as Lin, Sequential as Seq, ReLU, BatchNorm1d, LeakyReLU
 from torch_geometric.nn import fps, radius, knn_interpolate, PointConv, knn_graph, knn, DynamicEdgeConv
@@ -21,6 +22,19 @@ def mlp(channels, last=False, leaky=False):
     else:
         l.append(Seq(Lin(channels[-2], channels[-1], bias=False), BatchNorm1d(channels[-1]), rectifier()))
     return Seq(*l)
+
+# def mlp(channels, last=False, leaky=False):
+#     if leaky:
+#         rectifier = LeakyReLU
+#     else:
+#         rectifier = Relu
+#     l = [Seq(Lin(channels[i - 1], channels[i], bias=False), rectifier())
+#             for i in range(1, len(channels)-1)]
+#     if last:
+#         l.append(Seq(Lin(channels[-2], channels[-1], bias=True)))
+#     else:
+#         l.append(Seq(Lin(channels[-2], channels[-1], bias=False), rectifier()))
+#     return Seq(*l)
 
 
 class SimuOcclusion(object):
@@ -44,9 +58,21 @@ class SimuOcclusion(object):
                 mask = pos[i].matmul(vec) > 0
                 # mask = mask & (pos[i, :, 1] < 0)
                 p, b = pos[i][mask], batch[i][mask]
-                if p.size(0) >= 250:
+                if p.size(0) >= 256:
                     break
-            # ensure output contains self.npts points
+
+            # mask = pos[i, :, 1]>-0.05
+            # if torch.sum(mask) == 0:
+            #     mask = pos[i, :, 1]>-0.3
+            # if torch.sum(mask) == 0:
+            #     mask = pos[i, :, 1]>-0.5
+
+            # p, b = pos[i][mask], batch[i][mask]
+            # idx = np.random.choice(p.size(0), p.size(0)//8, False)
+            # p, b = p[idx], b[idx]
+
+            p, b = pos[i][mask], batch[i][mask]
+            # ensure output contains fixed number of points
             idx = np.random.choice(p.size(0), npts, True)
             out_pos.append(p[idx])
             out_batch.append(b[idx])
@@ -54,6 +80,25 @@ class SimuOcclusion(object):
         out_pos = torch.cat(out_pos, dim=0)
         out_batch = torch.cat(out_batch, dim=0)
         return out_pos, out_batch
+
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
+
+
+class NormalizeSphere(object):
+    """
+    Normalize point clouds into a unit sphere
+    """
+    def __init__(self):
+        self.center = T.Center()
+
+    def __call__(self, data):
+        data = self.center(data)
+
+        scale = (1 / data.pos.norm(dim=-1).max()) * 0.999999
+        data.pos = data.pos * scale
+
+        return data
 
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
@@ -78,12 +123,36 @@ def chamfer_loss(x, y):
     """
     x = x.unsqueeze(1)
     y = y.unsqueeze(2)
-    # diff = (x - y).norm(dim=-1)
-    diff = (x - y).pow(2).sum(dim=-1)
+    diff = (x - y).norm(dim=-1)
+    # diff = (x - y).pow(2).sum(dim=-1)
     dis1 = diff.min(dim=1)[0].mean(dim=1)
     dis2 = diff.min(dim=2)[0].mean(dim=1)
     dis = dis1 + dis2
     return dis
+
+
+def augment_transforms(args):
+    """
+    build augmentation transforms
+    """
+    pre_transform = None
+    if args.is_normalizeScale:
+        pre_transform = T.NormalizeScale()
+    if args.is_normalizeSphere:
+        pre_transform = NormalizeSphere()
+
+    transform = []
+    if args.dataset == 'shapenet':
+        transform.append(T.FixedPoints(args.num_pts))
+    if args.dataset == 'modelnet':
+        transform.append(T.SamplePoints(args.num_pts))
+    if args.is_randRotY:
+        transform.append(T.RandomRotate(180, axis=1))
+    if args.is_randST:
+        transform.append(T.RandomScale((2/3, 3/2)))
+        transform.append(T.RandomTranslate(0.2))
+    transform = T.Compose(transform)
+    return pre_transform, transform
 
 
 def get_lr(optimizer):

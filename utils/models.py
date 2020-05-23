@@ -16,8 +16,9 @@ class Model(torch.nn.Module):
         bottleneck: int, the size of bottleneck
         ratio_train: float, sampling ratio in further points sampling (FPS) during training
         ratio_test: float, sampling ratio in FPS during test
-        num_contrib_feats_train: int, the number of contribution features during training
-        num_contrib_feats_test: int, the number of contribution features during test
+        num_vote_train: int, the number of votes during training
+        num_contrib_vote_train: int, the maximum number of selected votes during training
+        num_vote_test: int, the number of votes during test
         is_fidReg: bool, flag for fidelity regularization during training
     """
 
@@ -27,28 +28,28 @@ class Model(torch.nn.Module):
             bottleneck,
             num_pts,
             num_pts_observed,
-            num_subpc_train,
-            num_subpc_test,
-            num_contrib_feats_train,
-            num_contrib_feats_test,
+            num_vote_train,
+            num_contrib_vote_train,
+            num_vote_test,
+            is_rand,
             is_vote,
             is_pCompletion,
             is_fidReg,
             is_classifier
         ):
         super(Model, self).__init__()
-        self.num_subpc_train = num_subpc_train
-        self.num_subpc_test = num_subpc_test
-        self.num_contrib_feats_train = num_contrib_feats_train
-        self.num_contrib_feats_test = num_contrib_feats_test
+        self.num_vote_train = num_vote_train
+        self.num_contrib_vote_train = num_contrib_vote_train
+        self.num_vote_test = num_vote_test
+        self.is_rand = is_rand
         self.is_vote = is_vote
         self.is_pCompletion = is_pCompletion
         self.is_fidReg = is_fidReg
         self.is_classifier = is_classifier
         self.bottleneck = bottleneck
 
-        ratio_train = num_subpc_train / num_pts
-        ratio_test = num_subpc_test / num_pts_observed
+        ratio_train = num_vote_train / num_pts
+        ratio_test = num_vote_test / num_pts_observed
         self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule(self.is_vote)
         if self.is_pCompletion:
@@ -66,14 +67,17 @@ class Model(torch.nn.Module):
         # select contribution features
         if self.training:
             contrib_mean, contrib_std, mapping = \
-                self.feature_selection(mean, std, self.num_subpc_train, self.num_contrib_feats_train, rand=True)
+                self.feature_selection(mean, std, self.num_vote_train, self.num_contrib_vote_train, rand=self.is_rand)
         else:
             contrib_mean, contrib_std, mapping = \
-                self.feature_selection(mean, std, self.num_subpc_test, self.num_contrib_feats_test, rand=False)
-        self.contrib_mean, self.contrib_std = contrib_mean, contrib_std
+                self.feature_selection(mean, std, self.num_vote_test, rand=False)
 
         # compute optimal latent feature
         optimal_z = self.latent_module(contrib_mean, contrib_std)
+
+        # delete
+        self.contrib_mean, self.contrib_std = contrib_mean, contrib_std
+        self.optimal_z = optimal_z
 
         # maskout contribution points from input points
         mask = []
@@ -90,6 +94,10 @@ class Model(torch.nn.Module):
         # generate point clouds from latent feature
         if self.is_pCompletion:
             generated_pc = self.decoder(optimal_z)
+
+        # classification
+        if self.is_classifier:
+            score = self.classifier(optimal_z)
 
         # compute fidelity
         if self.is_fidReg:
@@ -110,10 +118,6 @@ class Model(torch.nn.Module):
             min_dist = diff.pow(2).sum(dim=-1).min(dim=1)[0]
             fidelity = scatter_('mean', min_dist, mapped_masked_y_idx.cuda())
 
-        # classification
-        if self.is_classifier:
-            score = self.classifier(optimal_z)
-
         return generated_pc, fidelity, score
 
     def generate_pc_from_latent(self, x):
@@ -130,9 +134,9 @@ class Model(torch.nn.Module):
             self,
             mean,
             std,
-            num_feats,
-            num_contrib_feats,
-            rand
+            num_vote,
+            num_contrib_vote=None,
+            rand=False
         ):
         """
         Not all features generated from sub point clouds will be considered during
@@ -143,32 +147,33 @@ class Model(torch.nn.Module):
         Arguments:
             mean: [-1, bottleneck], computed mean for each sub point cloud
             std: [-1, bottleneck], computed std for each sub point cloud
-            num_feats: int, the number of extracted features from encoder during training
-            num_contrib_feats: int, maximum number of candidate features comtributing
+            num_vote: int, the number of extracted features from encoder during training
+            num_contrib_vote: int, maximum number of candidate features comtributing
                                     to final latent features during training
             rand: bool, flag for random number of features selection
 
         Returns:
-            new_mean: [bsize, num_contrib_feats_train, f], selected contribution means
-            new_std: [bsize, num_contrib_feats_test, f], selected contribution std
+            new_mean: [bsize, num_contrib_vote, f], selected contribution means
+            new_std: [bsize, num_contrib_vote, f], selected contribution std
             mapping: dict,
         """
-        mean = mean.view(-1, num_feats, mean.size(1))
-        std = std.view(-1, num_feats, std.size(1))
+        mean = mean.view(-1, num_vote, mean.size(1))
+        std = std.view(-1, num_vote, std.size(1))
 
         # feature random selection
         if rand:
-            num = np.random.choice(np.arange(1, num_contrib_feats+1), 1, False)
+            num = np.random.choice(np.arange(1, num_contrib_vote+1), 1, False)
             idx = np.random.choice(mean.size(1), num, False)
         else:
-            idx = np.random.choice(num_feats, num_contrib_feats, False)
+            # idx = np.random.choice(num_vote, num_contrib_vote, False)
+            idx = np.arange(num_vote)
         new_mean = mean[:, idx, :]
         new_std = std[:, idx, :]
 
         # build a mapping
         source_idx = torch.arange(mean.size(0)*mean.size(1))
         target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
-        source_idx = source_idx.view(-1, num_feats)[:, idx].view(-1)
+        source_idx = source_idx.view(-1, num_vote)[:, idx].view(-1)
         mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
         return new_mean, new_std, mapping
@@ -235,15 +240,14 @@ class LatentModule(torch.nn.Module):
         """
         # guassian model to get optimal
         if self.is_vote:
-            x = mean
             denorm = torch.sum(1/std, dim=1)
-            nume = torch.sum(x/std, dim=1)
-            optimal_x = nume / denorm       # [bsize, k]
-
+            nume = torch.sum(mean/std, dim=1)
+            optimal_z = nume / denorm       # [bsize, bottleneck]
         # max pooling
         else:
-            optimal_x = mean.max(dim=1)[0]
-        return optimal_x
+            optimal_z = mean.max(dim=1)[0]
+            # optimal_z = mean.mean(dim=1)
+        return optimal_z
 
 
 class Decoder(torch.nn.Module):
@@ -361,6 +365,12 @@ class Classifier(torch.nn.Module):
         x = self.relu(self.bn2(self.fc2(x)))
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.fc3(x)
+
+        # x = self.relu(self.fc1(x))
+        # # x = F.dropout(x, p=0.5, training=self.training)
+        # x = self.relu(self.fc2(x))
+        # # x = F.dropout(x, p=0.5, training=self.training)
+        # x = self.fc3(x)
 
         # x = self.relu(self.fc1(x))
         # x = F.dropout(x, p=0.5, training=self.training)
