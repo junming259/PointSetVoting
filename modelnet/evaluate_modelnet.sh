@@ -13,13 +13,19 @@ docker run -it --rm \
   --dataset modelnet \
   --num_pts 1024 \
   --num_pts_observed 512 \
-  --radius 0.25 \
+  --bsize 64 \
+  --radius 0.20 \
   --bottleneck 1024 \
-  --num_subpc_train 64 \
-  --num_contrib_feats_train 10 \
-  --num_subpc_test 128 \
-  --num_contrib_feats_test 128 \
+  --num_vote_train 64 \
+  --num_contrib_vote_train 10 \
+  --num_vote_test 256 \
   --is_classifier \
+  --is_rand \
   --is_vote \
+  --is_normalizeScale \
   --is_simuOcc \
-  # --randRotY
+  # --is_normalizeSphere \
+  # --is_randRotY \
+  # --is_randST \
+  # --is_pCompletion \
+  # --is_fidReg \
