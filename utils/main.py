@@ -9,12 +9,13 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.models import Model
-from utils.model_utils import SimuOcclusion, get_lr, chamfer_loss
+from utils.model_utils import SimuOcclusion, augment_transforms, get_lr, chamfer_loss
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
+from torch_geometric.nn import PointConv, fps, radius
 
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -138,6 +139,7 @@ def train(args, train_dataloader, test_dataloader):
     i = 1
     for epoch in range(1, args.max_epoch+1):
         # do training
+        # with torch.autograd.detect_anomaly():
         train_one_epoch(args, train_dataloader, optimizer, logger, epoch)
         # reduce learning rate
         scheduler.step()
@@ -171,7 +173,12 @@ def evaluate(args, dataloader, save_dir):
         with torch.no_grad():
             generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
             if args.is_pCompletion:
-                random_latent = model.module.contrib_mean[0, 0, :].view(1, -1)
+
+                # sampling in the latent space to generate diverse prediction
+                latent = model.module.optimal_z[0, :].view(1, -1)
+                random_latent = model.module.contrib_mean[0, 6, :].view(1, -1)
+                random_latent = (random_latent + latent) / 2
+
                 generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
                 contribution_pc = model.module.contrib_pc
 
@@ -197,6 +204,17 @@ def evaluate(args, dataloader, save_dir):
             np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
             np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
 
+            # # save key points for visualization
+            # pos = pos.reshape(-1, args.num_pts, 3)[0]
+            # idx = fps(pos, ratio=16/args.num_pts)
+            # key_pos = pos[idx]
+            #
+            # pos = pos.cpu().detach().numpy()
+            # key_pos = key_pos.cpu().detach().numpy()
+            #
+            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+            # np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+
     for item in loss_summary:
         loss_summary[item] /= len(dataloader)
         print('{}: {:.5f}'.format(item, loss_summary[item]))
@@ -207,40 +225,33 @@ def evaluate(args, dataloader, save_dir):
 
 
 def load_dataset(args):
+
     # load ShapeNet dataset
     if args.dataset == 'shapenet':
-        pre_transform = T.NormalizeScale()
-        if args.randRotY:
-            transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
-        else:
-            transform =T.FixedPoints(args.num_pts)
+        pre_transform, transform = augment_transforms(args)
 
         categories = args.categories.split(',')
-        train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval',
-                                 include_normals=False, pre_transform=pre_transform, transform=transform)
-        test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test',
-                                include_normals=False, pre_transform=pre_transform, transform=transform)
+        train_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='trainval', include_normals=False,
+                                 pre_transform=pre_transform, transform=transform)
+        test_dataset = ShapeNet('../data_root/ShapeNet_normal', categories, split='test', include_normals=False,
+                                pre_transform=pre_transform, transform=T.FixedPoints(args.num_pts))
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
-                                      num_workers=8, drop_last=True)
+                                      num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
-                                     num_workers=8, drop_last=True)
+                                     num_workers=6, drop_last=True)
 
     # load ModelNet dataset
     if args.dataset == 'modelnet':
-        pre_transform = T.NormalizeScale()
-        if args.randRotY:
-            transform = T.Compose([T.SamplePoints(args.num_pts), T.RandomRotate(180, axis=1)])
-        else:
-            transform = T.SamplePoints(args.num_pts)
+        pre_transform, transform = augment_transforms(args)
 
         train_dataset = ModelNet('../data_root/ModelNet40', name='40', train=True,
                                  pre_transform=pre_transform, transform=transform)
         test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
-                                 pre_transform=pre_transform, transform=transform)
+                                 pre_transform=pre_transform, transform=T.SamplePoints(args.num_pts))
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
-                                      num_workers=8, drop_last=True)
+                                      num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
-                                     num_workers=8, drop_last=True)
+                                     num_workers=6, drop_last=True)
 
     return train_dataloader, test_dataloader
 
@@ -294,14 +305,12 @@ if __name__ == '__main__':
                         help="radius for generating sub point clouds")
     parser.add_argument("--bottleneck", type=int,
                         help="the size of bottleneck")
-    parser.add_argument("--num_subpc_train", type=int,
-                        help="the number of sub point clouds sampled during training")
-    parser.add_argument("--num_subpc_test", type=int,
-                        help="the number of sub point clouds sampled during test")
-    parser.add_argument("--num_contrib_feats_train", type=int,
-                        help="the number of contribution features during training")
-    parser.add_argument("--num_contrib_feats_test", type=int,
-                        help="the number of contribution features during test")
+    parser.add_argument("--num_vote_train", type=int,
+                        help="the number of votes (sub point clouds) during training")
+    parser.add_argument("--num_contrib_vote_train", type=int,
+                        help="the maximum number of contribution votes during training")
+    parser.add_argument("--num_vote_test", type=int,
+                        help="the number of votes (sub point clouds) during test")
     parser.add_argument("--weight_chamfer", type=float, default=1.0,
                         help="weight for chamfer distance")
     parser.add_argument("--weight_fidelity", type=float, default=0.1,
@@ -310,8 +319,16 @@ if __name__ == '__main__':
                         help="weight for classification loss")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
-    parser.add_argument("--randRotY", action='store_true',
+    parser.add_argument("--is_normalizeSphere", action='store_true',
+                        help="flag for Centers and normalizes node into a unit sphere")
+    parser.add_argument("--is_normalizeScale", action='store_true',
+                        help="flag for Centers and normalizes node positions to the interval (−1,1)")
+    parser.add_argument("--is_randRotY", action='store_true',
                         help="flag for random rotation along Y axis")
+    parser.add_argument("--is_randST", action='store_true',
+                        help="flag for random scale and translate")
+    parser.add_argument("--is_rand", action='store_true',
+                        help="flag for using random vote training strategy")
     parser.add_argument("--eval", action='store_true',
                         help="flag for doing evaluation")
     parser.add_argument("--checkpoint", type=str,
@@ -330,10 +347,10 @@ if __name__ == '__main__':
         bottleneck=args.bottleneck,
         num_pts=args.num_pts,
         num_pts_observed=args.num_pts_observed,
-        num_subpc_train=args.num_subpc_train,
-        num_subpc_test=args.num_subpc_test,
-        num_contrib_feats_train=args.num_contrib_feats_train,
-        num_contrib_feats_test=args.num_contrib_feats_test,
+        num_vote_train=args.num_vote_train,
+        num_contrib_vote_train=args.num_contrib_vote_train,
+        num_vote_test=args.num_vote_test,
+        is_rand=args.is_rand,
         is_vote=args.is_vote,
         is_pCompletion=args.is_pCompletion,
         is_fidReg=args.is_fidReg,
