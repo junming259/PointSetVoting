@@ -103,14 +103,8 @@ class completion3D_class(InMemoryDataset):
         super(completion3D_class, self).__init__(root, transform, pre_transform,
                                        pre_filter)
 
-        if split == 'train':
+        if split == 'test':
             path = self.processed_paths[0]
-        elif split == 'val':
-            path = self.processed_paths[1]
-        elif split == 'test':
-            path = self.processed_paths[2]
-        elif split == 'trainval':
-            path = self.processed_paths[3]
         else:
             raise ValueError((f'Split {split} found, but expected either '
                               'train, val, trainval or test'))
@@ -135,7 +129,7 @@ class completion3D_class(InMemoryDataset):
         cats = '_'.join([cat[:3].lower() for cat in self.categories])
         return [
             os.path.join('{}_{}.pt'.format(cats, split))
-            for split in ['train', 'val', 'test', 'trainval']
+            for split in ['test']
         ]
 
     def download(self):
@@ -166,40 +160,15 @@ class completion3D_class(InMemoryDataset):
         for name in filenames:
             cat = name.split(osp.sep)[0]
 
-            if split_in_loop == 'train' or split_in_loop == 'val':
-                if cat not in categories_ids:
-                    continue
-
-            # TODO the meaning of the three cols in partial and gt
-            # what should pos, x, y be assigned
             fpos = None
             pos = None
-            # type of weight is float, so the type of pos should be float
-            # output = input.matmul(weight.t())
-            if split_in_loop == 'train' or split_in_loop == 'val':
-                fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/gt'), name), 'r')
-                pos = torch.tensor(fpos['data'], dtype=torch.float32)
-
-            # print('PATH IS' )
-            # print(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name))
-            # print(pos)
-
-            fy = None
-            y = None
 
             if split_in_loop == 'test':
-                fpos = h5py.File(osp.join(osp.join(self.raw_dir, 'val/partial'), name), 'r')
+                fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
                 pos = torch.tensor(fpos['data'], dtype=torch.float32)
-                fy = h5py.File(osp.join(osp.join(self.raw_dir, 'val/gt'), name), 'r')
-                y = torch.tensor(fy['data'], dtype=torch.float32)
 
-            # there are only three cols, no gt in test
-            data = None
-            if split_in_loop == 'train' or split_in_loop == 'val':
-                data = Data(pos=pos, category=cat_idx[cat])
-            else:
-                data = Data(pos=pos, y = y, category=cat_idx[cat])
-            # print(data)
+            data = Data(pos=pos)
+  
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:
@@ -210,13 +179,13 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['train', 'val', 'test']):
+        for i, split in enumerate(['test']):
             print('in the loop')
             path = None
-            if split == 'train' or split == 'val':
-                path = osp.join(self.raw_dir, f'{split}.list')
+            # if split == 'train' or split == 'val':
+            #     path = osp.join(self.raw_dir, f'{split}.list')
             if split == 'test':
-                path = osp.join(self.raw_dir, 'val.list')
+                path = osp.join(self.raw_dir, 'test.list')
             with open(path, 'r') as f:
                 tmp = ".h5"
                 filenames = [                    
@@ -224,10 +193,7 @@ class completion3D_class(InMemoryDataset):
                     for name in f
                 ]
             data_list = self.process_filenames(filenames, split)
-            if split == 'train' or split == 'val':
-                trainval += data_list
-            torch.save(self.collate(data_list), self.processed_paths[i])
-        torch.save(self.collate(trainval), self.processed_paths[3])
+            torch.save(self.collate(data_list), self.processed_paths[0])
         print('end of process()')
 
     def __repr__(self):
