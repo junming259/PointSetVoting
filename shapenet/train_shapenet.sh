@@ -10,7 +10,8 @@ docker run -it --rm \
   python ../utils/main.py \
   --model_name completion_shapenet \
   --dataset shapenet \
-  --categories Chair,Airplane,Car,Table \
+  --categories Chair,Airplane \
+  --task completion \
   --num_pts 2048 \
   --num_pts_observed 1024 \
   --lr 0.0002 \
@@ -22,14 +23,10 @@ docker run -it --rm \
   --num_vote_train 64 \
   --num_contrib_vote_train 10 \
   --num_vote_test 64 \
-  --weight_chamfer 1.0 \
-  --weight_fidelity 0.1 \
-  --is_rand \
-  --is_pCompletion \
-  --is_simuOcc \
   --is_vote \
-  # --is_normalizeSphere \
+  --is_rand \
+  --is_simuOcc \
+  --is_normalizeSphere \
   # --is_normalizeScale \
   # --is_randRotY \
   # --is_randST \
-  # --is_fidReg \

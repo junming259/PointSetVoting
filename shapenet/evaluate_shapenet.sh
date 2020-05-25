@@ -10,10 +10,11 @@ docker run -it --rm \
   python ../utils/main.py \
   --eval \
   --checkpoint checkpoint/completion_shapenet \
+  --task completion \
   --dataset shapenet \
-  --categories Chair,Airplane,Car,Table \
+  --categories Chair,Airplane \
   --num_pts 2048 \
-  --num_pts_observed 512 \
+  --num_pts_observed 1024 \
   --bsize 32 \
   --radius 0.20 \
   --bottleneck 1024 \
@@ -21,11 +22,9 @@ docker run -it --rm \
   --num_contrib_vote_train 10 \
   --num_vote_test 64 \
   --is_rand \
-  --is_pCompletion \
-  --is_simuOcc \
   --is_vote \
-  # --is_normalizeSphere \
+  --is_simuOcc \
+  --is_normalizeSphere \
   # --is_normalizeScale \
   # --is_randRotY \
   # --is_randST \
-  # --is_fidReg \
