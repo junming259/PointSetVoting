@@ -4,7 +4,7 @@ import sys
 import torch.nn.functional as F
 from torch_geometric.nn import PointConv, fps, radius
 from torch_geometric.utils import scatter_
-from .model_utils import mlp
+from .model_utils import mlp, create_batch_one_hot_category
 
 
 class Model(torch.nn.Module):
@@ -33,9 +33,7 @@ class Model(torch.nn.Module):
             num_vote_test,
             is_rand,
             is_vote,
-            is_pCompletion,
-            is_fidReg,
-            is_classifier
+            task
         ):
         super(Model, self).__init__()
         self.num_vote_train = num_vote_train
@@ -43,23 +41,27 @@ class Model(torch.nn.Module):
         self.num_vote_test = num_vote_test
         self.is_rand = is_rand
         self.is_vote = is_vote
-        self.is_pCompletion = is_pCompletion
-        self.is_fidReg = is_fidReg
-        self.is_classifier = is_classifier
+        self.task = task
         self.bottleneck = bottleneck
 
         ratio_train = num_vote_train / num_pts
         ratio_test = num_vote_test / num_pts_observed
+
+        self.transformer = mlp([3, 64], leaky=True)
+
         self.encoder = Encoder(radius, bottleneck, ratio_train, ratio_test)
         self.latent_module = LatentModule(self.is_vote)
-        if self.is_pCompletion:
-            self.decoder = Decoder(bottleneck)
-        if self.is_classifier:
-            self.classifier = Classifier(bottleneck, 40)
+        if task == 'completion':
+            self.decoder = FoldingBasedDecoder(bottleneck)
+        if task == 'classification':
+            self.decoder = Classifier(bottleneck, 40)
+        if task == 'segmentation':
+            self.decoder = Segmentator(bottleneck, 50)
 
-    def forward(self, x=None, pos=None, batch=None):
-        generated_pc, fidelity, score = None, None, None
+    def forward(self, x=None, pos=None, batch=None, category=None):
         batch = batch - batch.min()
+
+        x = self.transformer(pos)
 
         # extract feature for each sub point clouds
         mean, std, x_idx, y_idx = self.encoder(x, pos, batch)
@@ -75,50 +77,65 @@ class Model(torch.nn.Module):
         # compute optimal latent feature
         optimal_z = self.latent_module(contrib_mean, contrib_std)
 
-        # delete
         self.contrib_mean, self.contrib_std = contrib_mean, contrib_std
         self.optimal_z = optimal_z
 
-        # maskout contribution points from input points
-        mask = []
-        for item in mapping.keys():
-            mask.append(y_idx==item)
-        mask = torch.stack(mask, dim=-1).any(dim=-1)
-        contrib_pos = pos[x_idx[mask]]
-        contrib_batch = batch[x_idx[mask]]
+        # generate prediction
+        if self.task == 'segmentation':
+            one_hot_category = create_batch_one_hot_category(category)
+            # pred = self.decoder(optimal_z, pos, one_hot_category)
+            pred = self.decoder(optimal_z, x, one_hot_category)
+        else:
+            pred = self.decoder(optimal_z)
+        return pred
 
-        # output the first contribution point clouds for visualization
-        first_batch = contrib_batch.min()
-        self.contrib_pc = contrib_pos[contrib_batch==first_batch]
 
-        # generate point clouds from latent feature
-        if self.is_pCompletion:
-            generated_pc = self.decoder(optimal_z)
+        # # generate point clouds from latent feature
+        # if self.is_pCompletion:
+        #     generated_pc = self.decoder(optimal_z)
+        #
+        # # classification
+        # if self.is_classifier:
+        #     score = self.classifier(optimal_z)
+        #
+        # # segmentation
+        # if self.is_segmentation:
+        #     score = self.segmentator(optimal_z, pos)
 
-        # classification
-        if self.is_classifier:
-            score = self.classifier(optimal_z)
 
-        # compute fidelity
-        if self.is_fidReg:
-            # during training reduce fidelity, which is the average distance from
-            # each point in the input to its nearest neighbour in the output. This
-            # measures how well the input is preserved. To reduce computation resource,
-            # only considered contribution points
-            masked_y_idx = y_idx[mask].detach().cpu().numpy()
-            mapped_masked_y_idx = list(map(lambda x: mapping[x], masked_y_idx))
-            mapped_masked_y_idx = torch.from_numpy(np.array(mapped_masked_y_idx))
+        # # maskout contribution points from input points
+        # mask = []
+        # for item in mapping.keys():
+        #     mask.append(y_idx==item)
+        # mask = torch.stack(mask, dim=-1).any(dim=-1)
+        # contrib_pos = pos[x_idx[mask]]
+        # contrib_batch = batch[x_idx[mask]]
+        #
+        # # output the first contribution point clouds for visualization
+        # first_batch = contrib_batch.min()
+        # self.contrib_pc = contrib_pos[contrib_batch==first_batch]
 
-            # generate point clouds from each contribution latent feature
-            latent_pcs = self.decoder(contrib_mean.view(-1, contrib_mean.size(2)))
 
-            # compute fidelity
-            diff = contrib_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
-            # min_dist = diff.norm(dim=-1).min(dim=1)[0]
-            min_dist = diff.pow(2).sum(dim=-1).min(dim=1)[0]
-            fidelity = scatter_('mean', min_dist, mapped_masked_y_idx.cuda())
-
-        return generated_pc, fidelity, score
+        # # compute fidelity
+        # if self.is_fidReg:
+        #     # during training reduce fidelity, which is the average distance from
+        #     # each point in the input to its nearest neighbour in the output. This
+        #     # measures how well the input is preserved. To reduce computation resource,
+        #     # only considered contribution points
+        #     masked_y_idx = y_idx[mask].detach().cpu().numpy()
+        #     mapped_masked_y_idx = list(map(lambda x: mapping[x], masked_y_idx))
+        #     mapped_masked_y_idx = torch.from_numpy(np.array(mapped_masked_y_idx))
+        #
+        #     # generate point clouds from each contribution latent feature
+        #     latent_pcs = self.decoder(contrib_mean.view(-1, contrib_mean.size(2)))
+        #
+        #     # compute fidelity
+        #     diff = contrib_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
+        #     # min_dist = diff.norm(dim=-1).min(dim=1)[0]
+        #     min_dist = diff.pow(2).sum(dim=-1).min(dim=1)[0]
+        #     fidelity = scatter_('mean', min_dist, mapped_masked_y_idx.cuda())
+        #
+        # return generated_pc, fidelity, score
 
     def generate_pc_from_latent(self, x):
         """
@@ -182,8 +199,10 @@ class Model(torch.nn.Module):
 class Encoder(torch.nn.Module):
     def __init__(self, radius, bottleneck, ratio_train, ratio_test):
         super(Encoder, self).__init__()
+        # self.sa_module = SAModule(radius, ratio_train, ratio_test,
+        #                           mlp([3, 64, 128, 512], leaky=True))
         self.sa_module = SAModule(radius, ratio_train, ratio_test,
-                                  mlp([3, 64, 128, 512], leaky=True))
+                                  mlp([64+3, 64, 128, 512], leaky=True))
         self.mlp = mlp([512+3, 512, bottleneck*2], last=True, leaky=True)
 
     def reparameterize(self, mean, std):
@@ -250,12 +269,12 @@ class LatentModule(torch.nn.Module):
         return optimal_z
 
 
-class Decoder(torch.nn.Module):
+class FoldingBasedDecoder(torch.nn.Module):
     def __init__(self, bottleneck):
         """
         Same decoder structure as proposed in the FoldingNet
         """
-        super(Decoder, self).__init__()
+        super(FoldingBasedDecoder, self).__init__()
         self.fold1 = FoldingNetDecFold1(bottleneck)
         self.fold2 = FoldingNetDecFold2(bottleneck)
 
@@ -377,4 +396,48 @@ class Classifier(torch.nn.Module):
         # x = self.relu(self.fc2(x))
         # x = F.dropout(x, p=0.5, training=self.training)
         # x = self.fc3(x)
+        return F.log_softmax(x, dim=-1)
+
+
+class Segmentator(torch.nn.Module):
+    """
+    Pointwise part segmentation
+
+    Arguments:
+        k: the number of output categories
+    """
+    def __init__(self, bottleneck, k):
+        super(Segmentator, self).__init__()
+        self.bottleneck = bottleneck
+        # self.fc1 = torch.nn.Linear(bottleneck+3+16, 512)
+        self.fc1 = torch.nn.Linear(bottleneck+64+16, 512)
+        self.fc2 = torch.nn.Linear(512, 256)
+        self.fc3 = torch.nn.Linear(256, 128)
+        self.fc4 = torch.nn.Linear(128, k)
+        self.bn1 = torch.nn.BatchNorm1d(512)
+        self.bn2 = torch.nn.BatchNorm1d(256)
+        self.bn3 = torch.nn.BatchNorm1d(128)
+        self.relu = torch.nn.LeakyReLU()
+
+    def forward(self, latent, pos, one_hot_category):
+
+        bsize = one_hot_category.size(0)
+        # pos = pos.view(bsize, -1, 3)
+        pos = pos.view(bsize, -1, 64)
+        latent = torch.unsqueeze(latent, 1)     # batch, 1, bottleneck
+        latent = latent.repeat(1, pos.size(1), 1)
+        one_hot_category = torch.unsqueeze(one_hot_category, 1)     # batch, 1, 16
+        one_hot_category = one_hot_category.repeat(1, pos.size(1), 1)
+
+        x = torch.cat([latent, pos, one_hot_category], dim=-1).view(-1, self.bottleneck+64+16)
+
+        x = self.relu(self.bn1(self.fc1(x)))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.relu(self.bn2(self.fc2(x)))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.relu(self.bn3(self.fc3(x)))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.fc4(x)
+        # print(x.size())
+        # assert False
         return F.log_softmax(x, dim=-1)
