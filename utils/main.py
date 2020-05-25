@@ -9,13 +9,14 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.models import Model
-from utils.model_utils import SimuOcclusion, augment_transforms, get_lr, chamfer_loss
+from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import PointConv, fps, radius
+from torch_geometric.utils import intersection_and_union as i_and_u
 
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -35,21 +36,21 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
     for j, data in enumerate(loader, 0):
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
+        category = data.category if args.task == 'segmentation' else None
 
         # training
         model.zero_grad()
-        generated_pc, fidelity, score = model(None, pos, batch)
+        pred = model(None, pos, batch, category)
 
-        loss = 0
-        if args.is_pCompletion:
-            loss_summary['loss_chamfer'] = chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
-            loss += args.weight_chamfer*loss_summary['loss_chamfer']
-        if args.is_fidReg:
-            loss_summary['loss_fidelity'] = fidelity.mean()
-            loss += args.weight_fidelity*loss_summary['loss_fidelity']
-        if args.is_classifier:
-            loss_summary['loss_cls'] = F.nll_loss(score, label)
-            loss += args.weight_cls*loss_summary['loss_cls']
+        if args.task == 'completion':
+            loss_summary['loss_chamfer'] = chamfer_loss(pred, pos.view(-1, args.num_pts, 3)).mean()
+            loss = loss_summary['loss_chamfer']
+        if args.task == 'classification':
+            loss_summary['loss_cls'] = F.nll_loss(pred, label)
+            loss = loss_summary['loss_cls']
+        if args.task == 'segmentation':
+            loss_summary['loss_seg'] = F.nll_loss(pred, label)
+            loss = loss_summary['loss_seg']
 
         loss.backward()
         optimizer.step()
@@ -66,63 +67,67 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
 def test_one_epoch(args, loader, logger, epoch):
 
     model.eval()
-    trans = SimuOcclusion()
-    loss_summary = {}
-    if args.is_pCompletion:
-        loss_summary['test_chamfer_dist'] = 0
-    if args.is_fidReg:
-        loss_summary['test_fidelity'] = 0
-    if args.is_classifier:
-        loss_summary['test_acc'] = 0
+    results = []
+    intersections, unions, categories = [], [], []
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
+        category = data.category if args.task == 'segmentation' else None
+
         if args.is_simuOcc:
-            pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+            data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
+            pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
         else:
-            pos_observed, batch_observed = pos, batch
+            pos_observed, batch_observed, label_observed = pos, batch, label
 
         # inference
         with torch.no_grad():
-            generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
+            pred = model(None, pos_observed, batch_observed, category)
 
-        if args.is_pCompletion:
-            loss_summary['test_chamfer_dist'] += chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
-        if args.is_fidReg:
-            loss_summary['test_fidelity'] += fidelity.mean()
-        if args.is_classifier:
-            pred = score.max(1)[1]
-            loss_summary['test_acc'] += pred.eq(label).float().mean()
+        if args.task == 'completion':
+            results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
 
-    for item in loss_summary:
-        loss_summary[item] /= len(loader)
-        logger.add_scalar(item, loss_summary[item], epoch)
-    print('Epoch: {:03d}, '.format(epoch), end='')
-    print(''.join(['{}: {:.4f}, '.format(k, v) for k,v in loss_summary.items()]), '\n')
+        if args.task == 'classification':
+            pred = pred.max(1)[1]
+            results.append(pred.eq(label).float())
 
+        if args.task == 'segmentation':
+            pred = pred.max(1)[1]
+            i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
+            intersections.append(i.to(torch.device('cpu')))
+            unions.append(u.to(torch.device('cpu')))
+            categories.append(category.to(torch.device('cpu')))
 
-def check_overwrite(model_name):
-    check_dir = 'checkpoint/{}'.format(model_name)
-    log_dir = 'logs/{}'.format(model_name)
-    if os.path.exists(check_dir) or os.path.exists(log_dir):
-        valid = ['y', 'yes', 'no', 'n']
-        inp = None
-        while inp not in valid:
-            inp = input('{} already exists. Do you want to overwrite it? (y/n)'.format(model_name))
-            if inp.lower() in ['n', 'no']:
-                raise Exception('Please create new experiment.')
-        # remove the existing dir if overwriting.
-        if os.path.exists(check_dir):
-            shutil.rmtree(check_dir)
-        if os.path.exists(log_dir):
-            shutil.rmtree(log_dir)
+    if args.task == 'completion':
+        results = torch.cat(results, dim=0).mean().item()
+        logger.add_scalar('test_chamfer_dist', results, epoch)
+        print('Epoch: {:03d}, Test Chamfer: {:.4f}'.format(epoch, results))
+        results = -results
 
-    # create directory
-    os.makedirs(check_dir)
-    os.makedirs(log_dir)
+    if args.task == 'classification':
+        results = torch.cat(results, dim=0).mean().item()
+        logger.add_scalar('test_acc', results, epoch)
+        print('Epoch: {:03d}, Test Acc: {:.4f}'.format(epoch, results))
 
-    return check_dir, log_dir
+    if args.task == 'segmentation':
+        category = torch.cat(categories, dim=0)
+        intersection = torch.cat(intersections, dim=0)
+        union = torch.cat(unions, dim=0)
+        ious = [[] for _ in range(len(loader.dataset.categories))]
+        for j in range(category.size(0)):
+            i = intersection[j, loader.dataset.y_mask[category[j]]]
+            u = union[j, loader.dataset.y_mask[category[j]]]
+            iou = i.to(torch.float) / u.to(torch.float)
+            iou[torch.isnan(iou)] = 1
+            ious[category[j]].append(iou.mean().item())
+
+        for cat in range(len(loader.dataset.categories)):
+            ious[cat] = torch.tensor(ious[cat]).mean().item()
+        results = torch.tensor(ious).mean().item()
+        logger.add_scalar('test_mIoU', results, epoch)
+        print('Epoch: {:03d}, Test mIoU: {:.4f}'.format(epoch, results))
+    return results
 
 
 def train(args, train_dataloader, test_dataloader):
@@ -137,91 +142,187 @@ def train(args, train_dataloader, test_dataloader):
 
     global i
     i = 1
+    acc = -10000
     for epoch in range(1, args.max_epoch+1):
         # do training
-        # with torch.autograd.detect_anomaly():
         train_one_epoch(args, train_dataloader, optimizer, logger, epoch)
         # reduce learning rate
         scheduler.step()
         # validation
-        test_one_epoch(args, test_dataloader, logger, epoch)
-        # save model
-        torch.save(model.state_dict(), os.path.join(check_dir, 'model.pth'))
+        acc_ = test_one_epoch(args, test_dataloader, logger, epoch)
+        if acc_ > acc:
+            # save model
+            torch.save(model.state_dict(), os.path.join(check_dir, 'model.pth'))
+            acc = acc_
 
 
-def evaluate(args, dataloader, save_dir):
+def evaluate(args, loader, save_dir):
 
     model.eval()
-    trans = SimuOcclusion()
-    loss_summary = {}
-    if args.is_pCompletion:
-        loss_summary['Avg_chamfer_dist'] = 0
-    if args.is_fidReg:
-        loss_summary['Avg_fidelity'] = 0
-    if args.is_classifier:
-        loss_summary['Avg_acc'] = 0
+    results = []
+    intersections, unions, categories = [], [], []
 
-    for j, data in enumerate(dataloader, 0):
+
+    for j, data in enumerate(loader, 0):
         data = data.to(device)
         pos, batch, label = data.pos, data.batch, data.y
-        # pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+        category = data.category if args.task == 'segmentation' else None
+
         if args.is_simuOcc:
-            pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+            data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
+            pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
         else:
-            pos_observed, batch_observed = pos, batch
+            pos_observed, batch_observed, label_observed = pos, batch, label
 
         with torch.no_grad():
-            generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
-            if args.is_pCompletion:
-
+            pred = model(None, pos_observed, batch_observed, category)
+            if args.task == 'completion':
                 # sampling in the latent space to generate diverse prediction
                 latent = model.module.optimal_z[0, :].view(1, -1)
-                random_latent = model.module.contrib_mean[0, 6, :].view(1, -1)
+                idx = np.random.choice(args.num_vote_test, 1, False)
+                random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
                 random_latent = (random_latent + latent) / 2
+                pred_diverse = model.module.generate_pc_from_latent(random_latent)
 
-                generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
-                contribution_pc = model.module.contrib_pc
+        if args.task == 'completion':
+            results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
 
-        if args.is_pCompletion:
-            loss_summary['Avg_chamfer_dist'] += chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
-        if args.is_fidReg:
-            loss_summary['Avg_fidelity'] += fidelity.mean()
-        if args.is_classifier:
-            pred = score.max(1)[1]
-            loss_summary['Avg_acc'] += pred.eq(label).float().mean()
+        if args.task == 'classification':
+            pred = pred.max(1)[1]
+            results.append(pred.eq(label).float())
 
-        if args.is_pCompletion:
-            # save the first sample results for visualization
-            pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+        if args.task == 'segmentation':
+            pred = pred.max(1)[1]
+            i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
+            intersections.append(i.to(torch.device('cpu')))
+            unions.append(u.to(torch.device('cpu')))
+            categories.append(category.to(torch.device('cpu')))
+
             pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-            contribution_pc = contribution_pc.cpu().detach().numpy()
-            generated_pc = generated_pc.cpu().detach().numpy()[0]
-            generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
+            pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
+            label_observed = label_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
+            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos_observed)
+            np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+            np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
 
-            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-            np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-            np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
-            np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
-            np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
 
-            # # save key points for visualization
-            # pos = pos.reshape(-1, args.num_pts, 3)[0]
-            # idx = fps(pos, ratio=16/args.num_pts)
-            # key_pos = pos[idx]
-            #
-            # pos = pos.cpu().detach().numpy()
-            # key_pos = key_pos.cpu().detach().numpy()
-            #
-            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-            # np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+        # if args.is_pCompletion:
+        #     # save the first sample results for visualization
+        #     pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+        #     pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+        #     contribution_pc = contribution_pc.cpu().detach().numpy()
+        #     generated_pc = generated_pc.cpu().detach().numpy()[0]
+        #     generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
+        #
+        #     np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+        #     np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+        #     np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
+        #     np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
+        #     np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
 
-    for item in loss_summary:
-        loss_summary[item] /= len(dataloader)
-        print('{}: {:.5f}'.format(item, loss_summary[item]))
-    print('{} point clouds are evaluated.'.format(len(dataloader.dataset)))
+    if args.task == 'completion':
+        results = torch.cat(results, dim=0).mean().item()
+        print('Test Chamfer: {:.4f}'.format(results))
 
-    if args.is_pCompletion:
+    if args.task == 'classification':
+        results = torch.cat(results, dim=0).mean().item()
+        print('Test Acc: {:.4f}'.format(results))
+
+    if args.task == 'segmentation':
+        category = torch.cat(categories, dim=0)
+        intersection = torch.cat(intersections, dim=0)
+        union = torch.cat(unions, dim=0)
+        ious = [[] for _ in range(len(loader.dataset.categories))]
+        for j in range(category.size(0)):
+            i = intersection[j, loader.dataset.y_mask[category[j]]]
+            u = union[j, loader.dataset.y_mask[category[j]]]
+            iou = i.to(torch.float) / u.to(torch.float)
+            iou[torch.isnan(iou)] = 1
+            ious[category[j]].append(iou.mean().item())
+
+        for cat in range(len(loader.dataset.categories)):
+            ious[cat] = torch.tensor(ious[cat]).mean().item()
+        miou = torch.tensor(ious).mean().item()
+        print('Test mIoU: {:.4f}'.format(miou))
+
+    print('{} point clouds are evaluated.'.format(len(loader.dataset)))
+
+    if args.task == 'completion' or args.task == 'segmentation':
         print('Sample results are saved to: {}'.format(save_dir))
+
+
+# def evaluate(args, dataloader, save_dir):
+#
+#     model.eval()
+#     loss_summary = {}
+#     if args.is_pCompletion:
+#         loss_summary['Avg_chamfer_dist'] = 0
+#     if args.is_fidReg:
+#         loss_summary['Avg_fidelity'] = 0
+#     if args.is_classifier:
+#         loss_summary['Avg_acc'] = 0
+#
+#     for j, data in enumerate(dataloader, 0):
+#         data = data.to(device)
+#         pos, batch, label = data.pos, data.batch, data.y
+#         # pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+#         if args.is_simuOcc:
+#             pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
+#         else:
+#             pos_observed, batch_observed = pos, batch
+#
+#         with torch.no_grad():
+#             generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
+#             if args.is_pCompletion:
+#
+#                 # sampling in the latent space to generate diverse prediction
+#                 latent = model.module.optimal_z[0, :].view(1, -1)
+#                 random_latent = model.module.contrib_mean[0, 6, :].view(1, -1)
+#                 random_latent = (random_latent + latent) / 2
+#
+#                 generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
+#                 contribution_pc = model.module.contrib_pc
+#
+#         if args.is_pCompletion:
+#             loss_summary['Avg_chamfer_dist'] += chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
+#         if args.is_fidReg:
+#             loss_summary['Avg_fidelity'] += fidelity.mean()
+#         if args.is_classifier:
+#             pred = score.max(1)[1]
+#             loss_summary['Avg_acc'] += pred.eq(label).float().mean()
+#
+#         if args.is_pCompletion:
+#             # save the first sample results for visualization
+#             pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+#             pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+#             contribution_pc = contribution_pc.cpu().detach().numpy()
+#             generated_pc = generated_pc.cpu().detach().numpy()[0]
+#             generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
+#
+#             np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+#             np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+#             np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
+#             np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
+#             np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
+#
+#             # # save key points for visualization
+#             # pos = pos.reshape(-1, args.num_pts, 3)[0]
+#             # idx = fps(pos, ratio=16/args.num_pts)
+#             # key_pos = pos[idx]
+#             #
+#             # pos = pos.cpu().detach().numpy()
+#             # key_pos = key_pos.cpu().detach().numpy()
+#             #
+#             # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+#             # np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+#
+#     for item in loss_summary:
+#         loss_summary[item] /= len(dataloader)
+#         print('{}: {:.5f}'.format(item, loss_summary[item]))
+#     print('{} point clouds are evaluated.'.format(len(dataloader.dataset)))
+#
+#     if args.is_pCompletion:
+#         print('Sample results are saved to: {}'.format(save_dir))
 
 
 def load_dataset(args):
@@ -256,6 +357,28 @@ def load_dataset(args):
     return train_dataloader, test_dataloader
 
 
+def check_overwrite(model_name):
+    check_dir = 'checkpoint/{}'.format(model_name)
+    log_dir = 'logs/{}'.format(model_name)
+    if os.path.exists(check_dir) or os.path.exists(log_dir):
+        valid = ['y', 'yes', 'no', 'n']
+        inp = None
+        while inp not in valid:
+            inp = input('{} already exists. Do you want to overwrite it? (y/n)'.format(model_name))
+            if inp.lower() in ['n', 'no']:
+                raise Exception('Please create new experiment.')
+        # remove the existing dir if overwriting.
+        if os.path.exists(check_dir):
+            shutil.rmtree(check_dir)
+        if os.path.exists(log_dir):
+            shutil.rmtree(log_dir)
+
+    # create directory
+    os.makedirs(check_dir)
+    os.makedirs(log_dir)
+    return check_dir, log_dir
+
+
 def backup(log_dir, parser):
     shutil.copyfile('../utils/main.py', os.path.join(log_dir, 'main.py'))
     shutil.copyfile('../utils/models.py', os.path.join(log_dir, 'models.py'))
@@ -275,14 +398,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model',
                         help="model name")
-    parser.add_argument("--dataset", type=str,
-                        help="shapenet or modelnet")
-    parser.add_argument("--is_pCompletion", action='store_true',
-                        help="flag for doing point clouds completion.")
-    parser.add_argument("--is_classifier", action='store_true',
-                        help="flag for computing classification score this is only valid for ModelNet.")
-    parser.add_argument("--is_fidReg", action='store_true',
-                        help="flag for fidelity regularization during training")
+    parser.add_argument("--dataset", type=str, choices=['shapenet', 'modelnet', 'completion3D'],
+                        help="shapenet or modelnet or completion3D")
+    parser.add_argument("--task", type=str, choices=['completion', 'classification', 'segmentation'],
+                        help=' '.join([
+                            'completion: point clouds completion',
+                            'classification: shape classification on ModelNet40',
+                            'segmentation: part segmentation on ShapeNet'
+                        ]))
     parser.add_argument("--is_vote", action='store_true',
                         help="flag for computing latent feature by voting, otherwise max pooling")
     parser.add_argument("--categories", default='Chair',
@@ -311,12 +434,12 @@ if __name__ == '__main__':
                         help="the maximum number of contribution votes during training")
     parser.add_argument("--num_vote_test", type=int,
                         help="the number of votes (sub point clouds) during test")
-    parser.add_argument("--weight_chamfer", type=float, default=1.0,
-                        help="weight for chamfer distance")
-    parser.add_argument("--weight_fidelity", type=float, default=0.1,
-                        help="weight for fidelity regularization")
-    parser.add_argument("--weight_cls", type=float, default=1.0,
-                        help="weight for classification loss")
+    # parser.add_argument("--weight_chamfer", type=float, default=1.0,
+    #                     help="weight for chamfer distance")
+    # parser.add_argument("--weight_fidelity", type=float, default=0.1,
+    #                     help="weight for fidelity regularization")
+    # parser.add_argument("--weight_cls", type=float, default=1.0,
+    #                     help="weight for classification loss")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
     parser.add_argument("--is_normalizeSphere", action='store_true',
@@ -335,12 +458,11 @@ if __name__ == '__main__':
                         help="directory which contains pretrained model (.pth)")
 
     args = parser.parse_args()
-    assert args.is_pCompletion or args.is_classifier
     assert args.dataset in ['shapenet', 'modelnet', 'completion3D']
+    assert args.task in ['completion', 'classification', 'segmentation']
 
+    # construct data loader
     train_dataloader, test_dataloader = load_dataset(args)
-    # # only support classification on modelnet
-    # args.is_classifier = args.is_classifier and args.dataset=='modelnet'
 
     model = Model(
         radius=args.radius,
@@ -352,9 +474,7 @@ if __name__ == '__main__':
         num_vote_test=args.num_vote_test,
         is_rand=args.is_rand,
         is_vote=args.is_vote,
-        is_pCompletion=args.is_pCompletion,
-        is_fidReg=args.is_fidReg,
-        is_classifier=args.is_classifier
+        task=args.task
     )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -374,7 +494,7 @@ if __name__ == '__main__':
         save_dir = os.path.join(args.checkpoint, 'eval_sample_results')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        evaluate(args=args, dataloader=test_dataloader, save_dir=save_dir)
+        evaluate(args=args, loader=test_dataloader, save_dir=save_dir)
 
     # training
     else:

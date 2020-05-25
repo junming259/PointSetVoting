@@ -85,6 +85,43 @@ class SimuOcclusion(object):
         return '{}()'.format(self.__class__.__name__)
 
 
+def simulate_partial_point_clouds(data, npts, task):
+    """
+    Simulate partial point clouds.
+    """
+    pos, batch, label = data.pos, data.batch, data.y
+
+    bsize = batch.max() + 1
+    pos = pos.view(bsize, -1, 3)
+    batch = batch.view(bsize, -1)
+    if task == 'segmentation':
+        label = label.view(bsize, -1)
+
+    out_pos, out_batch, out_label = [], [], []
+    for i in range(pos.size(0)):
+        while True:
+            # define a plane by its normal and it goes through the origin
+            vec = torch.randn(3).to(pos.device)
+            # mask out half side of points
+            mask = pos[i].matmul(vec) > 0
+            p = pos[i][mask]
+            if p.size(0) >= 256:
+                break
+        # ensure output contains fixed number of points
+        idx = np.random.choice(p.size(0), npts, True)
+        out_pos.append(pos[i][mask][idx])
+        out_batch.append(batch[i][mask][idx])
+        if task == 'segmentation':
+            out_label.append(label[i][mask][idx])
+
+    data.pos = torch.cat(out_pos, dim=0)
+    data.batch = torch.cat(out_batch, dim=0)
+    if task == 'segmentation':
+        data.y = torch.cat(out_label, dim=0)
+    return data
+
+
+
 class NormalizeSphere(object):
     """
     Normalize point clouds into a unit sphere
@@ -153,6 +190,20 @@ def augment_transforms(args):
         transform.append(T.RandomTranslate(0.2))
     transform = T.Compose(transform)
     return pre_transform, transform
+
+
+def create_batch_one_hot_category(category):
+    """
+    Create batch one-hot vector for indicating category. ShapeNet.
+
+    Arguments:
+        category: [batch]
+    """
+    batch_one_hot_category = np.zeros((len(category), 16))
+    for b in range(len(category)):
+        batch_one_hot_category[b, int(category[b])] = 1
+    batch_one_hot_category = torch.from_numpy(batch_one_hot_category).float().cuda()
+    return batch_one_hot_category
 
 
 def get_lr(optimizer):
