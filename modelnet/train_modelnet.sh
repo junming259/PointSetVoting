@@ -10,6 +10,7 @@ docker run -it --rm \
   python ../utils/main.py \
   --model_name cls_modelnet \
   --dataset modelnet \
+  --task classification \
   --num_pts 1024 \
   --num_pts_observed 512 \
   --lr 0.001 \
@@ -21,14 +22,10 @@ docker run -it --rm \
   --num_vote_train 64 \
   --num_contrib_vote_train 10 \
   --num_vote_test 16 \
-  --weight_cls 1.0 \
   --is_rand \
-  --is_classifier \
-  --is_simuOcc \
   --is_vote \
+  --is_simuOcc \
   --is_normalizeSphere \
   # --is_normalizeScale \
   # --is_randRotY \
   # --is_randST \
-  # --is_pCompletion \
-  # --is_fidReg \

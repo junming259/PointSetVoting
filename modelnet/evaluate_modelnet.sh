@@ -11,6 +11,7 @@ docker run -it --rm \
   --eval \
   --checkpoint checkpoint/cls_modelnet \
   --dataset modelnet \
+  --task classification \
   --num_pts 1024 \
   --num_pts_observed 512 \
   --bsize 64 \
@@ -18,14 +19,11 @@ docker run -it --rm \
   --bottleneck 1024 \
   --num_vote_train 64 \
   --num_contrib_vote_train 10 \
-  --num_vote_test 256 \
-  --is_classifier \
+  --num_vote_test 128 \
   --is_rand \
   --is_vote \
-  --is_normalizeScale \
+  --is_normalizeSphere \
   --is_simuOcc \
-  # --is_normalizeSphere \
+  # --is_normalizeScale \
   # --is_randRotY \
   # --is_randST \
-  # --is_pCompletion \
-  # --is_fidReg \
