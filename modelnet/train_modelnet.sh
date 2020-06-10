@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/modelnet \
   completion-pc \
   python ../utils/main.py \
-  --model_name cls_modelnet \
+  --model_name test1_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
   --dataset modelnet \
   --task classification \
   --num_pts 1024 \
@@ -25,7 +25,4 @@ docker run -it --rm \
   --is_rand \
   --is_vote \
   --is_simuOcc \
-  --is_normalizeSphere \
-  # --is_normalizeScale \
-  # --is_randRotY \
-  # --is_randST \
+  --norm sphere \

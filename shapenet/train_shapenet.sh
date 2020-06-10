@@ -8,9 +8,9 @@ docker run -it --rm \
   -w /cpc/shapenet \
   completion-pc \
   python ../utils/main.py \
-  --model_name completion_shapenet \
+  --model_name cpc_b32e500s200lr2e-4_r020tr64-10_te16_bn1024_ChairAirplaneCarTable_vote_nofid_CD_normSphere_test \
   --dataset shapenet \
-  --categories Chair,Airplane \
+  --categories Chair,Airplane,Car,Table,Lamp \
   --task completion \
   --num_pts 2048 \
   --num_pts_observed 1024 \

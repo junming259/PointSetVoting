@@ -3,7 +3,7 @@ import numpy as np
 import sys
 import torch.nn.functional as F
 from torch_geometric.nn import PointConv, fps, radius
-from torch_geometric.utils import scatter_
+# from torch_geometric.utils import scatter_
 from .model_utils import mlp, create_batch_one_hot_category
 
 
@@ -79,6 +79,8 @@ class Model(torch.nn.Module):
 
         self.contrib_mean, self.contrib_std = contrib_mean, contrib_std
         self.optimal_z = optimal_z
+
+        # print(self.contrib_std.min(), self.contrib_std.max())
 
         # generate prediction
         if self.task == 'segmentation':
@@ -211,9 +213,15 @@ class Encoder(torch.nn.Module):
 
     def forward(self, x, pos, batch):
         x, new_pos, new_batch, x_idx, y_idx = self.sa_module(x, pos, batch)
+
         x = self.mlp(torch.cat([x, new_pos], dim=-1))
         mean, logvar = torch.chunk(x, 2, dim=-1)
+        # in case gradient explodes
+        # logvar = torch.clamp(logvar, min=-100, max=100)
         std = torch.exp(0.5*logvar)
+
+        self.new_pos = new_pos
+
         return mean, std, x_idx, y_idx
 
 

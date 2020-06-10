@@ -9,7 +9,9 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.models import Model
-from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds
+from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds, MODELNET_TO_SCANOBJECTNN, SCANOBJECTNN_TO_MODELNET
+from utils.class_completion3D import completion3D_class
+from utils.class_scanobjectnn import scanobjectnn_class
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
@@ -17,7 +19,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import PointConv, fps, radius
 from torch_geometric.utils import intersection_and_union as i_and_u
-
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 torch.backends.cudnn.benchmark = False
@@ -45,12 +46,14 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
         if args.task == 'completion':
             loss_summary['loss_chamfer'] = chamfer_loss(pred, pos.view(-1, args.num_pts, 3)).mean()
             loss = loss_summary['loss_chamfer']
-        if args.task == 'classification':
+        elif args.task == 'classification':
             loss_summary['loss_cls'] = F.nll_loss(pred, label)
             loss = loss_summary['loss_cls']
-        if args.task == 'segmentation':
+        elif args.task == 'segmentation':
             loss_summary['loss_seg'] = F.nll_loss(pred, label)
             loss = loss_summary['loss_seg']
+        else:
+            assert False
 
         loss.backward()
         optimizer.step()
@@ -86,7 +89,12 @@ def test_one_epoch(args, loader, logger, epoch):
             pred = model(None, pos_observed, batch_observed, category)
 
         if args.task == 'completion':
-            results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+            if args.dataset == 'completion3D':
+                # use the label(complete point clouds) for testing
+                results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
+            else:
+                # no label(complete point clouds) provided
+                results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
 
         if args.task == 'classification':
             pred = pred.max(1)[1]
@@ -145,6 +153,7 @@ def train(args, train_dataloader, test_dataloader):
     acc = -10000
     for epoch in range(1, args.max_epoch+1):
         # do training
+        # with torch.autograd.detect_anomaly():
         train_one_epoch(args, train_dataloader, optimizer, logger, epoch)
         # reduce learning rate
         scheduler.step()
@@ -161,18 +170,23 @@ def evaluate(args, loader, save_dir):
     model.eval()
     results = []
     intersections, unions, categories = [], [], []
-
+    if args.task == 'completion':
+        categories_summary = {k:[] for k in loader.dataset.idx2cat.keys()}
+        idx2cat = loader.dataset.idx2cat
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
-        pos, batch, label = data.pos, data.batch, data.y
-        category = data.category if args.task == 'segmentation' else None
+        pos, batch, label, category = data.y, data.batch, data.y, data.category
+        # pos, batch, label = data.pos, data.batch, data.y
+        # category = data.category if args.task == 'segmentation' else None
 
         if args.is_simuOcc:
             data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
             pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
         else:
             pos_observed, batch_observed, label_observed = pos, batch, label
+
+        # category[category==0] = 8
 
         with torch.no_grad():
             pred = model(None, pos_observed, batch_observed, category)
@@ -184,12 +198,46 @@ def evaluate(args, loader, save_dir):
                 random_latent = (random_latent + latent) / 2
                 pred_diverse = model.module.generate_pc_from_latent(random_latent)
 
-        if args.task == 'completion':
-            results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+                for i in range(16):
+                    # latent = model.module.optimal_z[0, :].view(1, -1)
+                    # idx = np.random.choice(args.num_vote_test, 1, False)
+                    # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
+                    # random_latent = (random_latent + latent) / 2
+
+                    random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
+                    pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
+                    pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
+                    np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
+
+                    # random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
+                    # pred_diverse = model.module.generate_pc_from_latent(random_latent)
+                    # pred_diverse = pred_diverse.cpu().detach().numpy()[0]
+                    # np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse)
 
         if args.task == 'classification':
-            pred = pred.max(1)[1]
-            results.append(pred.eq(label).float())
+            if args.dataset == 'modelnet':
+                pred = pred.max(1)[1]
+                results.append(pred.eq(label).float())
+            if args.dataset == 'scanobjectnn':
+                pred = pred.max(1)[1]
+                pred_new, label_new = [], []
+                for i in range(pred.size(0)):
+                    # print(label[i], type(label[i]))
+                    if label[i].item() in SCANOBJECTNN_TO_MODELNET.keys():
+                        pred_new.append(pred[i])
+                        label_new.append(label[i])
+                pred, label = torch.stack(pred_new), torch.stack(label_new)
+
+                for idx,p in enumerate(pred):
+                    # print(p, type(p))
+                    # print(p in MODELNET_TO_SCANOBJECTNN.keys())
+                    if p.item() in MODELNET_TO_SCANOBJECTNN.keys():
+                        pred[idx] = MODELNET_TO_SCANOBJECTNN[p.item()]
+                    else:
+                        pred[idx] = 39
+                # print('pred:', pred)
+                # print('label:', label)
+                results.append(pred.eq(label).float())
 
         if args.task == 'segmentation':
             pred = pred.max(1)[1]
@@ -205,24 +253,58 @@ def evaluate(args, loader, save_dir):
             np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
             np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
 
+        if args.task == 'completion':
+            # save key points for visualization
+            # pos = pos.reshape(-1, args.num_pts, 3)[0]
+            # idx = fps(pos, ratio=16/args.num_pts)
+            # key_pos = pos[idx]
 
-        # if args.is_pCompletion:
-        #     # save the first sample results for visualization
-        #     pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-        #     pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-        #     contribution_pc = contribution_pc.cpu().detach().numpy()
-        #     generated_pc = generated_pc.cpu().detach().numpy()[0]
-        #     generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
-        #
-        #     np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-        #     np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-        #     np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
-        #     np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
-        #     np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
+            key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
+            key_pos = key_pos.cpu().detach().numpy()[0]
+            np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+
+            if args.dataset == 'completion3D':
+                # use the label(complete point clouds) for testing
+                results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
+                pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+            else:
+                # no label(complete point clouds) provided
+                results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+                pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+
+            categories.append(category.to(torch.device('cpu')))
+            pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+            pred = pred.cpu().detach().numpy()[0]
+            pred_diverse = pred_diverse.cpu().detach().numpy()[0]
+            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+            np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+            np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+            np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
+
+            # # save key points for visualization
+            # pos = pos.reshape(-1, args.num_pts, 3)[0]
+            # idx = fps(pos, ratio=8/args.num_pts)
+            # key_pos = pos[idx]
+            #
+            # pos = pos.cpu().detach().numpy()
+            # key_pos = key_pos.cpu().detach().numpy()
+            #
+            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+
 
     if args.task == 'completion':
-        results = torch.cat(results, dim=0).mean().item()
-        print('Test Chamfer: {:.4f}'.format(results))
+        results = torch.cat(results, dim=0)
+        category = torch.cat(categories, dim=0)
+        for i in range(category.size(0)):
+            categories_summary[category[i].item()].append(results[i])
+        total_chamfer_distance = 0
+        for idx in categories_summary:
+            chamfer_distance_cat = torch.stack(categories_summary[idx], dim=0).mean().item()
+            total_chamfer_distance += chamfer_distance_cat
+            print('{}: {:.7f}'.format(idx2cat[idx], chamfer_distance_cat))
+        print('Mean Class Chamfer Distance: {:.7f}'.format(total_chamfer_distance/len(categories_summary)))
+        # results = torch.cat(results, dim=0).mean().item()
+        # print('Test Chamfer: {:.4f}'.format(results))
 
     if args.task == 'classification':
         results = torch.cat(results, dim=0).mean().item()
@@ -349,10 +431,41 @@ def load_dataset(args):
                                  pre_transform=pre_transform, transform=transform)
         test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
                                  pre_transform=pre_transform, transform=T.SamplePoints(args.num_pts))
+        # test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
+        #                          pre_transform=pre_transform, transform=transform)
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
                                      num_workers=6, drop_last=True)
+
+    # load completion3D dataset
+    if args.dataset == 'completion3D':
+        pre_transform, transform = augment_transforms(args)
+
+        categories = args.categories.split(',')
+        train_dataset = completion3D_class('../data_root/completion3D', categories, split='trainval',
+                            include_normals=False, pre_transform=pre_transform, transform=transform)
+        test_dataset = completion3D_class('../data_root/completion3D', categories, split='test',
+                            include_normals=False, pre_transform=pre_transform, transform=transform)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
+                                      num_workers=8, drop_last=True)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
+                                     num_workers=8, drop_last=True)
+
+    # # load completion3D dataset
+    # if args.dataset == 'scanobjectnn':
+    #     pre_transform, transform = augment_transforms(args)
+    #
+    #     categories = args.categories.split(',')
+    #     train_dataset = scanobjectnn_class('../data_root/scanobjectnn', categories, split='train',
+    #                                        pre_transform=pre_transform, transform=transform)
+    #     test_dataset = scanobjectnn_class('../data_root/scanobjectnn', categories, split='test',
+    #                                        pre_transform=pre_transform, transform=transform)
+    #     train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
+    #                                   num_workers=6, drop_last=True)
+    #     test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+    #                                  num_workers=6, drop_last=True)
+
 
     return train_dataloader, test_dataloader
 
@@ -398,7 +511,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model',
                         help="model name")
-    parser.add_argument("--dataset", type=str, choices=['shapenet', 'modelnet', 'completion3D'],
+    parser.add_argument("--dataset", type=str, choices=['shapenet', 'modelnet', 'completion3D', 'scanobjectnn'],
                         help="shapenet or modelnet or completion3D")
     parser.add_argument("--task", type=str, choices=['completion', 'classification', 'segmentation'],
                         help=' '.join([
@@ -442,10 +555,12 @@ if __name__ == '__main__':
     #                     help="weight for classification loss")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
-    parser.add_argument("--is_normalizeSphere", action='store_true',
-                        help="flag for Centers and normalizes node into a unit sphere")
-    parser.add_argument("--is_normalizeScale", action='store_true',
-                        help="flag for Centers and normalizes node positions to the interval (−1,1)")
+    parser.add_argument("--norm", type=str, choices=['scale', 'sphere', 'sph_wo_cen', 'box', 'scalebox'],
+                        help="flag for normalization")
+    # parser.add_argument("--is_normalizeSphere", action='store_true',
+    #                     help="flag for Centers and normalizes node into a unit sphere")
+    # parser.add_argument("--is_normalizeScale", action='store_true',
+    #                     help="flag for Centers and normalizes node positions to the interval (−1,1)")
     parser.add_argument("--is_randRotY", action='store_true',
                         help="flag for random rotation along Y axis")
     parser.add_argument("--is_randST", action='store_true',
@@ -458,7 +573,7 @@ if __name__ == '__main__':
                         help="directory which contains pretrained model (.pth)")
 
     args = parser.parse_args()
-    assert args.dataset in ['shapenet', 'modelnet', 'completion3D']
+    assert args.dataset in ['shapenet', 'modelnet', 'completion3D', 'scanobjectnn']
     assert args.task in ['completion', 'classification', 'segmentation']
 
     # construct data loader
@@ -487,7 +602,7 @@ if __name__ == '__main__':
     if args.eval:
         model_path = os.path.join(args.checkpoint, 'model.pth')
         if not os.path.isfile(model_path):
-            raise ValueError('Please provide a valid path for pretrained model!'.format(model_path))
+            raise ValueError('{} does not exist. Please provide a valid path for pretrained model!'.format(model_path))
         model.load_state_dict(torch.load(model_path))
         print('Load model successfully from: {}'.format(args.checkpoint))
 
