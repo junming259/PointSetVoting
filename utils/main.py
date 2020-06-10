@@ -11,7 +11,6 @@ sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from utils.models import Model
 from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds, MODELNET_TO_SCANOBJECTNN, SCANOBJECTNN_TO_MODELNET
 from utils.class_completion3D import completion3D_class
-from utils.class_scanobjectnn import scanobjectnn_class
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
@@ -292,80 +291,6 @@ def evaluate(args, loader, save_dir):
         print('Sample results are saved to: {}'.format(save_dir))
 
 
-# def evaluate(args, dataloader, save_dir):
-#
-#     model.eval()
-#     loss_summary = {}
-#     if args.is_pCompletion:
-#         loss_summary['Avg_chamfer_dist'] = 0
-#     if args.is_fidReg:
-#         loss_summary['Avg_fidelity'] = 0
-#     if args.is_classifier:
-#         loss_summary['Avg_acc'] = 0
-#
-#     for j, data in enumerate(dataloader, 0):
-#         data = data.to(device)
-#         pos, batch, label = data.pos, data.batch, data.y
-#         # pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
-#         if args.is_simuOcc:
-#             pos_observed, batch_observed = trans(pos, batch, args.num_pts_observed)
-#         else:
-#             pos_observed, batch_observed = pos, batch
-#
-#         with torch.no_grad():
-#             generated_pc, fidelity, score = model(None, pos_observed, batch_observed)
-#             if args.is_pCompletion:
-#
-#                 # sampling in the latent space to generate diverse prediction
-#                 latent = model.module.optimal_z[0, :].view(1, -1)
-#                 random_latent = model.module.contrib_mean[0, 6, :].view(1, -1)
-#                 random_latent = (random_latent + latent) / 2
-#
-#                 generated_latent_pc = model.module.generate_pc_from_latent(random_latent)
-#                 contribution_pc = model.module.contrib_pc
-#
-#         if args.is_pCompletion:
-#             loss_summary['Avg_chamfer_dist'] += chamfer_loss(generated_pc, pos.view(-1, args.num_pts, 3)).mean()
-#         if args.is_fidReg:
-#             loss_summary['Avg_fidelity'] += fidelity.mean()
-#         if args.is_classifier:
-#             pred = score.max(1)[1]
-#             loss_summary['Avg_acc'] += pred.eq(label).float().mean()
-#
-#         if args.is_pCompletion:
-#             # save the first sample results for visualization
-#             pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-#             pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-#             contribution_pc = contribution_pc.cpu().detach().numpy()
-#             generated_pc = generated_pc.cpu().detach().numpy()[0]
-#             generated_latent_pc = generated_latent_pc.cpu().detach().numpy()
-#
-#             np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-#             np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-#             np.save(os.path.join(save_dir, 'contribution_pc_{}'.format(j)), contribution_pc)
-#             np.save(os.path.join(save_dir, 'generated_pc_{}'.format(j)), generated_pc)
-#             np.save(os.path.join(save_dir, 'generated_latent_pc_{}'.format(j)), generated_latent_pc)
-#
-#             # # save key points for visualization
-#             # pos = pos.reshape(-1, args.num_pts, 3)[0]
-#             # idx = fps(pos, ratio=16/args.num_pts)
-#             # key_pos = pos[idx]
-#             #
-#             # pos = pos.cpu().detach().numpy()
-#             # key_pos = key_pos.cpu().detach().numpy()
-#             #
-#             # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-#             # np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-#
-#     for item in loss_summary:
-#         loss_summary[item] /= len(dataloader)
-#         print('{}: {:.5f}'.format(item, loss_summary[item]))
-#     print('{} point clouds are evaluated.'.format(len(dataloader.dataset)))
-#
-#     if args.is_pCompletion:
-#         print('Sample results are saved to: {}'.format(save_dir))
-
-
 def load_dataset(args):
 
     # load ShapeNet dataset
@@ -390,8 +315,6 @@ def load_dataset(args):
                                  pre_transform=pre_transform, transform=transform)
         test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
                                  pre_transform=pre_transform, transform=T.SamplePoints(args.num_pts))
-        # test_dataset = ModelNet('../data_root/ModelNet40', name='40', train=False,
-        #                          pre_transform=pre_transform, transform=transform)
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
