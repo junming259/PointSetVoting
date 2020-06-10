@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='4,5,6,7'"' \
+  --gpus '"device='0,1,2,3'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/shapenet \
   -v $(pwd)/../utils:/cpc/utils \
@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/shapenet \
   completion-pc \
   python ../utils/main.py \
-  --model_name seg_b128e500s200lr1e-3_r020tr64-16_te64_bn1024_vote_simocc_xtransformer \
+  --model_name test_seg_b128e500s200lr1e-3_r020tr64-16_te64_bn1024_simocc \
   --dataset shapenet \
   --categories Airplane,Bag,Cap,Car,Chair,Earphone,Guitar,Knife,Lamp,Laptop,Motorbike,Mug,Pistol,Rocket,Skateboard,Table \
   --task segmentation \
@@ -26,7 +26,3 @@ docker run -it --rm \
   --is_vote \
   --is_rand \
   --is_simuOcc \
-  # --is_randST \
-  # --is_normalizeSphere \
-  # --is_normalizeScale \
-  # --is_randRotY \

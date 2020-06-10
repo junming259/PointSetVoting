@@ -239,14 +239,9 @@ def chamfer_loss(x, y):
 
 def augment_transforms(args):
     """
-    build augmentation transforms
+    define transformation
     """
     pre_transform = None
-    # if args.is_normalizeScale:
-    #     pre_transform = T.NormalizeScale()
-    # if args.is_normalizeSphere:
-    #     pre_transform = NormalizeSphere()
-
     if args.norm == 'scale':
         pre_transform = T.NormalizeScale()
     elif args.norm == 'sphere':
@@ -264,9 +259,6 @@ def augment_transforms(args):
 
     # if args.is_randRotY:
     #     transform.append(T.RandomRotate(180, axis=1))
-    # if args.is_randST:
-    #     transform.append(T.RandomScale((2/3, 3/2)))
-    #     transform.append(T.RandomTranslate(0.1))
     transform = T.Compose(transform)
     return pre_transform, transform
 

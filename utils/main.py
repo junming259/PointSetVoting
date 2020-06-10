@@ -483,6 +483,7 @@ def backup(log_dir, parser):
     for item in keys:
         file.write('{0}:{1}\n'.format(item, adict[item]))
         print('{0}:{1}'.format(item, adict[item]))
+    print()
     file.close()
 
 
@@ -526,20 +527,10 @@ if __name__ == '__main__':
                         help="the maximum number of contribution votes during training")
     parser.add_argument("--num_vote_test", type=int,
                         help="the number of votes (sub point clouds) during test")
-    # parser.add_argument("--weight_chamfer", type=float, default=1.0,
-    #                     help="weight for chamfer distance")
-    # parser.add_argument("--weight_fidelity", type=float, default=0.1,
-    #                     help="weight for fidelity regularization")
-    # parser.add_argument("--weight_cls", type=float, default=1.0,
-    #                     help="weight for classification loss")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
     parser.add_argument("--norm", type=str, choices=['scale', 'sphere', 'sph_wo_cen', 'box', 'scalebox'],
                         help="flag for normalization")
-    # parser.add_argument("--is_normalizeSphere", action='store_true',
-    #                     help="flag for Centers and normalizes node into a unit sphere")
-    # parser.add_argument("--is_normalizeScale", action='store_true',
-    #                     help="flag for Centers and normalizes node positions to the interval (−1,1)")
     parser.add_argument("--is_randRotY", action='store_true',
                         help="flag for random rotation along Y axis")
     parser.add_argument("--is_randST", action='store_true',
