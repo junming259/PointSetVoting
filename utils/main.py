@@ -176,9 +176,9 @@ def evaluate(args, loader, save_dir):
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
-        pos, batch, label, category = data.y, data.batch, data.y, data.category
-        # pos, batch, label = data.pos, data.batch, data.y
-        # category = data.category if args.task == 'segmentation' else None
+        # pos, batch, label, category = data.y, data.batch, data.y, data.category
+        pos, batch, label = data.pos, data.batch, data.y
+        category = data.category if args.task == 'segmentation' else None
 
         if args.is_simuOcc:
             data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
@@ -215,29 +215,8 @@ def evaluate(args, loader, save_dir):
                     # np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse)
 
         if args.task == 'classification':
-            if args.dataset == 'modelnet':
-                pred = pred.max(1)[1]
-                results.append(pred.eq(label).float())
-            if args.dataset == 'scanobjectnn':
-                pred = pred.max(1)[1]
-                pred_new, label_new = [], []
-                for i in range(pred.size(0)):
-                    # print(label[i], type(label[i]))
-                    if label[i].item() in SCANOBJECTNN_TO_MODELNET.keys():
-                        pred_new.append(pred[i])
-                        label_new.append(label[i])
-                pred, label = torch.stack(pred_new), torch.stack(label_new)
-
-                for idx,p in enumerate(pred):
-                    # print(p, type(p))
-                    # print(p in MODELNET_TO_SCANOBJECTNN.keys())
-                    if p.item() in MODELNET_TO_SCANOBJECTNN.keys():
-                        pred[idx] = MODELNET_TO_SCANOBJECTNN[p.item()]
-                    else:
-                        pred[idx] = 39
-                # print('pred:', pred)
-                # print('label:', label)
-                results.append(pred.eq(label).float())
+            pred = pred.max(1)[1]
+            results.append(pred.eq(label).float())
 
         if args.task == 'segmentation':
             pred = pred.max(1)[1]
@@ -541,9 +520,9 @@ if __name__ == '__main__':
                         help="radius for generating sub point clouds")
     parser.add_argument("--bottleneck", type=int,
                         help="the size of bottleneck")
-    parser.add_argument("--num_vote_train", type=int,
+    parser.add_argument("--num_vote_train", type=int, default=64,
                         help="the number of votes (sub point clouds) during training")
-    parser.add_argument("--num_contrib_vote_train", type=int,
+    parser.add_argument("--num_contrib_vote_train", type=int, default=10,
                         help="the maximum number of contribution votes during training")
     parser.add_argument("--num_vote_test", type=int,
                         help="the number of votes (sub point clouds) during test")

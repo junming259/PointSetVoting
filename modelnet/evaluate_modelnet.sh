@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='2'"' \
+  --gpus '"device='0'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/modelnet \
   -v $(pwd)/../utils:/cpc/utils \
@@ -9,20 +9,16 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_scalebox \
-  --dataset scanobjectnn \
-  --categories bag,bin,box,cabinet,chair,desk,display,door,shelf,table,bed,pillow,sink,sofa,toilet \
+  --checkpoint checkpoint/test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
+  --dataset modelnet \
   --task classification \
   --num_pts 1024 \
-  --num_pts_observed 2048 \
+  --num_pts_observed 512 \
   --bsize 64 \
   --radius 0.20 \
   --bottleneck 1024 \
-  --num_vote_train 64 \
-  --num_contrib_vote_train 10 \
   --num_vote_test 128 \
   --is_rand \
   --is_vote \
-  # --norm scalebox \
-  # --is_simuOcc \
-  # --is_randRotY \
+  --is_simuOcc \
+  --norm sphere \

@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/modelnet \
   completion-pc \
   python ../utils/main.py \
-  --model_name test1_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
+  --model_name test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
   --dataset modelnet \
   --task classification \
   --num_pts 1024 \
