@@ -145,7 +145,6 @@ def simulate_partial_point_clouds(data, npts, task):
         #     mask = pos[i, :, 1]>-0.5
         # p = pos[i][mask]
 
-
         # ensure output contains fixed number of points
         idx = np.random.choice(p.size(0), npts, True)
         out_pos.append(pos[i][mask][idx])
@@ -230,7 +229,7 @@ def chamfer_loss(x, y):
     x = x.unsqueeze(1)
     y = y.unsqueeze(2)
     diff = (x - y).norm(dim=-1)
-    diff = (x - y).pow(2).sum(dim=-1)
+    # diff = (x - y).pow(2).sum(dim=-1)
     dis1 = diff.min(dim=1)[0].mean(dim=1)
     dis2 = diff.min(dim=2)[0].mean(dim=1)
     dis = dis1 + dis2

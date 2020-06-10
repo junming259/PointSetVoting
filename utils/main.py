@@ -176,17 +176,17 @@ def evaluate(args, loader, save_dir):
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
-        # pos, batch, label, category = data.y, data.batch, data.y, data.category
         pos, batch, label = data.pos, data.batch, data.y
-        category = data.category if args.task == 'segmentation' else None
+        try:
+            category = data.category
+        except AttributeError:
+            category = None
 
         if args.is_simuOcc:
             data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
             pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
         else:
             pos_observed, batch_observed, label_observed = pos, batch, label
-
-        # category[category==0] = 8
 
         with torch.no_grad():
             pred = model(None, pos_observed, batch_observed, category)
@@ -198,21 +198,16 @@ def evaluate(args, loader, save_dir):
                 random_latent = (random_latent + latent) / 2
                 pred_diverse = model.module.generate_pc_from_latent(random_latent)
 
-                for i in range(16):
-                    # latent = model.module.optimal_z[0, :].view(1, -1)
-                    # idx = np.random.choice(args.num_vote_test, 1, False)
-                    # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
-                    # random_latent = (random_latent + latent) / 2
-
-                    random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
-                    pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
-                    pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
-                    np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
-
-                    # random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
-                    # pred_diverse = model.module.generate_pc_from_latent(random_latent)
-                    # pred_diverse = pred_diverse.cpu().detach().numpy()[0]
-                    # np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse)
+                # for i in range(16):
+                #     # latent = model.module.optimal_z[0, :].view(1, -1)
+                #     # idx = np.random.choice(args.num_vote_test, 1, False)
+                #     # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
+                #     # random_latent = (random_latent + latent) / 2
+                #
+                #     random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
+                #     pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
+                #     pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
+                #     np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
 
         if args.task == 'classification':
             pred = pred.max(1)[1]
@@ -234,10 +229,6 @@ def evaluate(args, loader, save_dir):
 
         if args.task == 'completion':
             # save key points for visualization
-            # pos = pos.reshape(-1, args.num_pts, 3)[0]
-            # idx = fps(pos, ratio=16/args.num_pts)
-            # key_pos = pos[idx]
-
             key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
             key_pos = key_pos.cpu().detach().numpy()[0]
             np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
@@ -260,17 +251,6 @@ def evaluate(args, loader, save_dir):
             np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
             np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
 
-            # # save key points for visualization
-            # pos = pos.reshape(-1, args.num_pts, 3)[0]
-            # idx = fps(pos, ratio=8/args.num_pts)
-            # key_pos = pos[idx]
-            #
-            # pos = pos.cpu().detach().numpy()
-            # key_pos = key_pos.cpu().detach().numpy()
-            #
-            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-
-
     if args.task == 'completion':
         results = torch.cat(results, dim=0)
         category = torch.cat(categories, dim=0)
@@ -281,7 +261,7 @@ def evaluate(args, loader, save_dir):
             chamfer_distance_cat = torch.stack(categories_summary[idx], dim=0).mean().item()
             total_chamfer_distance += chamfer_distance_cat
             print('{}: {:.7f}'.format(idx2cat[idx], chamfer_distance_cat))
-        print('Mean Class Chamfer Distance: {:.7f}'.format(total_chamfer_distance/len(categories_summary)))
+        print('Mean Class Chamfer Distance: {:.6f}'.format(total_chamfer_distance/len(categories_summary)))
         # results = torch.cat(results, dim=0).mean().item()
         # print('Test Chamfer: {:.4f}'.format(results))
 
@@ -430,21 +410,6 @@ def load_dataset(args):
                                       num_workers=8, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
                                      num_workers=8, drop_last=True)
-
-    # # load completion3D dataset
-    # if args.dataset == 'scanobjectnn':
-    #     pre_transform, transform = augment_transforms(args)
-    #
-    #     categories = args.categories.split(',')
-    #     train_dataset = scanobjectnn_class('../data_root/scanobjectnn', categories, split='train',
-    #                                        pre_transform=pre_transform, transform=transform)
-    #     test_dataset = scanobjectnn_class('../data_root/scanobjectnn', categories, split='test',
-    #                                        pre_transform=pre_transform, transform=transform)
-    #     train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
-    #                                   num_workers=6, drop_last=True)
-    #     test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
-    #                                  num_workers=6, drop_last=True)
-
 
     return train_dataloader, test_dataloader
 
