@@ -80,8 +80,6 @@ class Model(torch.nn.Module):
         self.contrib_mean, self.contrib_std = contrib_mean, contrib_std
         self.optimal_z = optimal_z
 
-        # print(self.contrib_std.min(), self.contrib_std.max())
-
         # generate prediction
         if self.task == 'segmentation':
             one_hot_category = create_batch_one_hot_category(category)
@@ -90,54 +88,6 @@ class Model(torch.nn.Module):
         else:
             pred = self.decoder(optimal_z)
         return pred
-
-
-        # # generate point clouds from latent feature
-        # if self.is_pCompletion:
-        #     generated_pc = self.decoder(optimal_z)
-        #
-        # # classification
-        # if self.is_classifier:
-        #     score = self.classifier(optimal_z)
-        #
-        # # segmentation
-        # if self.is_segmentation:
-        #     score = self.segmentator(optimal_z, pos)
-
-
-        # # maskout contribution points from input points
-        # mask = []
-        # for item in mapping.keys():
-        #     mask.append(y_idx==item)
-        # mask = torch.stack(mask, dim=-1).any(dim=-1)
-        # contrib_pos = pos[x_idx[mask]]
-        # contrib_batch = batch[x_idx[mask]]
-        #
-        # # output the first contribution point clouds for visualization
-        # first_batch = contrib_batch.min()
-        # self.contrib_pc = contrib_pos[contrib_batch==first_batch]
-
-
-        # # compute fidelity
-        # if self.is_fidReg:
-        #     # during training reduce fidelity, which is the average distance from
-        #     # each point in the input to its nearest neighbour in the output. This
-        #     # measures how well the input is preserved. To reduce computation resource,
-        #     # only considered contribution points
-        #     masked_y_idx = y_idx[mask].detach().cpu().numpy()
-        #     mapped_masked_y_idx = list(map(lambda x: mapping[x], masked_y_idx))
-        #     mapped_masked_y_idx = torch.from_numpy(np.array(mapped_masked_y_idx))
-        #
-        #     # generate point clouds from each contribution latent feature
-        #     latent_pcs = self.decoder(contrib_mean.view(-1, contrib_mean.size(2)))
-        #
-        #     # compute fidelity
-        #     diff = contrib_pos.unsqueeze(1) - latent_pcs[mapped_masked_y_idx]
-        #     # min_dist = diff.norm(dim=-1).min(dim=1)[0]
-        #     min_dist = diff.pow(2).sum(dim=-1).min(dim=1)[0]
-        #     fidelity = scatter_('mean', min_dist, mapped_masked_y_idx.cuda())
-        #
-        # return generated_pc, fidelity, score
 
     def generate_pc_from_latent(self, x):
         """

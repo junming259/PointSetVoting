@@ -9,7 +9,7 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.models import Model
-from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds, MODELNET_TO_SCANOBJECTNN, SCANOBJECTNN_TO_MODELNET
+from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds
 from utils.class_completion3D import completion3D_class
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
@@ -227,10 +227,10 @@ def evaluate(args, loader, save_dir):
             np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
 
         if args.task == 'completion':
-            # save key points for visualization
-            key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
-            key_pos = key_pos.cpu().detach().numpy()[0]
-            np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+            # # save key points for visualization
+            # key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
+            # key_pos = key_pos.cpu().detach().numpy()[0]
+            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
 
             if args.dataset == 'completion3D':
                 # use the label(complete point clouds) for testing
