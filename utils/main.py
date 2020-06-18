@@ -325,9 +325,9 @@ def load_dataset(args):
         pre_transform, transform = augment_transforms(args)
 
         categories = args.categories.split(',')
-        train_dataset = completion3D_class('../data_root/completion3D', categories, split='trainval',
+        train_dataset = completion3D_class('../data_root/completion3D', categories, split='train',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
-        test_dataset = completion3D_class('../data_root/completion3D', categories, split='test',
+        test_dataset = completion3D_class('../data_root/completion3D', categories, split='val',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=8, drop_last=True)
