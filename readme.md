@@ -101,20 +101,20 @@ specify which category or categories of object will be used.
 + Train the model. Specify which GPU devices to be used, and change `--gpus` option
 in ` train_shapenet.sh` to support multi-GPU training.
 ```shell
-cd shapnet/
+cd shapnet_seg/
 bash train_shapenet.sh
 ```
 
 + Visualize the training process by running Tensorboard.
 ```shell
-cd shapnet/
+cd shapnet_seg/
 bash tensorboard.sh
 ```
 
 + Evaluate your trained model. Make sure the `--checkpoint` in `evaluate_shapenet.sh`
 is consistent with the one in ` train_shapenet.sh`.
 ```shell
-cd shapnet/
+cd shapnet_seg/
 bash evaluate_shapenet.sh
 ```
 
