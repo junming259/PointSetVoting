@@ -390,20 +390,20 @@ if __name__ == '__main__':
     parser.add_argument("--is_vote", action='store_true',
                         help="flag for computing latent feature by voting, otherwise max pooling")
     parser.add_argument("--categories", default='Chair',
-                        help="point clouds categories in ShapeNet, string or [string]. Airplane, Bag, \
+                        help="point clouds categories, string or [string]. For ShapeNet: Airplane, Bag, \
                         Cap, Car, Chair, Earphone, Guitar, Knife, Lamp, Laptop, Motorbike, Mug, Pistol, \
-                        Rocket, Skateboard, Table")
+                        Rocket, Skateboard, Table; For Completion3D: plane;cabinet;car;chair;lamp;couch;table;watercraft")
     parser.add_argument("--num_pts", type=int,
                         help="the number of input points")
     parser.add_argument("--num_pts_observed", type=int,
                         help="the number of points in observed point clouds")
-    parser.add_argument("--bsize", type=int, default=8,
+    parser.add_argument("--bsize", type=int, default=32,
                         help="batch size")
-    parser.add_argument("--max_epoch", type=int, default=250,
+    parser.add_argument("--max_epoch", type=int, default=500,
                         help="max epoch to train")
-    parser.add_argument("--lr", type=float, default=0.0001,
+    parser.add_argument("--lr", type=float, default=0.0002,
                         help="batch size")
-    parser.add_argument("--step_size", type=int, default=300,
+    parser.add_argument("--step_size", type=int, default=200,
                         help="step size to reduce lr")
     parser.add_argument("--radius", type=float,
                         help="radius for generating sub point clouds")
@@ -417,21 +417,17 @@ if __name__ == '__main__':
                         help="the number of votes (sub point clouds) during test")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
-    parser.add_argument("--norm", type=str, choices=['scale', 'sphere', 'sph_wo_cen', 'box', 'scalebox'],
+    parser.add_argument("--norm", type=str, choices=['scale', 'sphere', 'sphere_wo_center'],
                         help="flag for normalization")
     parser.add_argument("--is_randRotY", action='store_true',
                         help="flag for random rotation along Y axis")
-    parser.add_argument("--is_randST", action='store_true',
-                        help="flag for random scale and translate")
-    parser.add_argument("--is_rand", action='store_true',
-                        help="flag for using random vote training strategy")
     parser.add_argument("--eval", action='store_true',
                         help="flag for doing evaluation")
     parser.add_argument("--checkpoint", type=str,
                         help="directory which contains pretrained model (.pth)")
 
     args = parser.parse_args()
-    assert args.dataset in ['shapenet', 'modelnet', 'completion3D', 'scanobjectnn']
+    assert args.dataset in ['shapenet', 'modelnet', 'completion3D']
     assert args.task in ['completion', 'classification', 'segmentation']
 
     # construct data loader
