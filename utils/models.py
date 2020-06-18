@@ -3,7 +3,6 @@ import numpy as np
 import sys
 import torch.nn.functional as F
 from torch_geometric.nn import PointConv, fps, radius
-# from torch_geometric.utils import scatter_
 from .model_utils import mlp, create_batch_one_hot_category
 
 
@@ -31,7 +30,6 @@ class Model(torch.nn.Module):
             num_vote_train,
             num_contrib_vote_train,
             num_vote_test,
-            is_rand,
             is_vote,
             task
         ):
@@ -39,7 +37,6 @@ class Model(torch.nn.Module):
         self.num_vote_train = num_vote_train
         self.num_contrib_vote_train = num_contrib_vote_train
         self.num_vote_test = num_vote_test
-        self.is_rand = is_rand
         self.is_vote = is_vote
         self.task = task
         self.bottleneck = bottleneck
@@ -68,11 +65,11 @@ class Model(torch.nn.Module):
 
         # select contribution features
         if self.training:
-            contrib_mean, contrib_std, mapping = \
-                self.feature_selection(mean, std, self.num_vote_train, self.num_contrib_vote_train, rand=self.is_rand)
+            contrib_mean, contrib_std = \
+                self.feature_selection(mean, std, self.num_vote_train, self.num_contrib_vote_train)
         else:
-            contrib_mean, contrib_std, mapping = \
-                self.feature_selection(mean, std, self.num_vote_test, rand=False)
+            contrib_mean, contrib_std = \
+                self.feature_selection(mean, std, self.num_vote_test)
 
         # compute optimal latent feature
         optimal_z = self.latent_module(contrib_mean, contrib_std)
@@ -105,54 +102,48 @@ class Model(torch.nn.Module):
             std,
             num_vote,
             num_contrib_vote=None,
-            rand=False
         ):
         """
-        Not all features generated from sub point clouds will be considered during
-        optimal latent feature computation. During training, random feature selection
-        is adapted. During test, most or all features will be contributed to calculate
-        the optimal latent feature.
+        During training, random feature selection is adapted. Only a portion of
+        features generated from local point clouds will be considered for optimal
+        latent feature computation. During test, all generated features will be
+        contributed to calculate the optimal latent feature.
 
         Arguments:
             mean: [-1, bottleneck], computed mean for each sub point cloud
             std: [-1, bottleneck], computed std for each sub point cloud
-            num_vote: int, the number of extracted features from encoder during training
+            num_vote: int, the total number of extracted features from encoder.
             num_contrib_vote: int, maximum number of candidate features comtributing
-                                    to final latent features during training
-            rand: bool, flag for random number of features selection
+                                    to optimal latent features during training
 
         Returns:
             new_mean: [bsize, num_contrib_vote, f], selected contribution means
             new_std: [bsize, num_contrib_vote, f], selected contribution std
-            mapping: dict,
         """
         mean = mean.view(-1, num_vote, mean.size(1))
         std = std.view(-1, num_vote, std.size(1))
 
         # feature random selection
-        if rand:
+        if self.training:
             num = np.random.choice(np.arange(1, num_contrib_vote+1), 1, False)
             idx = np.random.choice(mean.size(1), num, False)
         else:
-            # idx = np.random.choice(num_vote, num_contrib_vote, False)
             idx = np.arange(num_vote)
         new_mean = mean[:, idx, :]
         new_std = std[:, idx, :]
 
         # build a mapping
-        source_idx = torch.arange(mean.size(0)*mean.size(1))
-        target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
-        source_idx = source_idx.view(-1, num_vote)[:, idx].view(-1)
-        mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
+        # source_idx = torch.arange(mean.size(0)*mean.size(1))
+        # target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
+        # source_idx = source_idx.view(-1, num_vote)[:, idx].view(-1)
+        # mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
-        return new_mean, new_std, mapping
+        return new_mean, new_std
 
 
 class Encoder(torch.nn.Module):
     def __init__(self, radius, bottleneck, ratio_train, ratio_test):
         super(Encoder, self).__init__()
-        # self.sa_module = SAModule(radius, ratio_train, ratio_test,
-        #                           mlp([3, 64, 128, 512], leaky=True))
         self.sa_module = SAModule(radius, ratio_train, ratio_test,
                                   mlp([64+3, 64, 128, 512], leaky=True))
         self.mlp = mlp([512+3, 512, bottleneck*2], last=True, leaky=True)
@@ -169,9 +160,7 @@ class Encoder(torch.nn.Module):
         # in case gradient explodes
         # logvar = torch.clamp(logvar, min=-100, max=100)
         std = torch.exp(0.5*logvar)
-
-        self.new_pos = new_pos
-
+        # self.new_pos = new_pos
         return mean, std, x_idx, y_idx
 
 

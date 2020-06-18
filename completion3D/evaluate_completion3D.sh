@@ -10,17 +10,16 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024_trainval \
+  --checkpoint checkpoint/cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024_trainval_test \
   --task completion \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --num_pts 2048 \
   --num_pts_observed 2048 \
-  --bsize 16 \
+  --bsize 32 \
   --radius 0.10 \
   --bottleneck 1024 \
-  --num_vote_test 16 \
-  --is_rand \
+  --num_vote_test 32 \
   --is_vote \
 
 

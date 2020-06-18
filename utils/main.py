@@ -445,7 +445,6 @@ if __name__ == '__main__':
         num_vote_train=args.num_vote_train,
         num_contrib_vote_train=args.num_contrib_vote_train,
         num_vote_test=args.num_vote_test,
-        is_rand=args.is_rand,
         is_vote=args.is_vote,
         task=args.task
     )

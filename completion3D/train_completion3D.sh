@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/training \
   completion-pc \
   python ../utils/main.py \
-  --model_name cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024_trainval \
+  --model_name cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024_trainval_test \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --task completion \
@@ -24,4 +24,3 @@ docker run -it --rm \
   --num_contrib_vote_train 10 \
   --num_vote_test 32 \
   --is_vote \
-  --is_rand \

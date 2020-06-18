@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0,1'"' \
+  --gpus '"device='6,7'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/modelnet \
   -v $(pwd)/../utils:/cpc/utils \
@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/modelnet \
   completion-pc \
   python ../utils/main.py \
-  --model_name test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
+  --model_name test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere_test \
   --dataset modelnet \
   --task classification \
   --num_pts 1024 \
@@ -21,8 +21,7 @@ docker run -it --rm \
   --bottleneck 1024 \
   --num_vote_train 64 \
   --num_contrib_vote_train 10 \
-  --num_vote_test 16 \
-  --is_rand \
+  --num_vote_test 32 \
   --is_vote \
   --is_simuOcc \
   --norm sphere \

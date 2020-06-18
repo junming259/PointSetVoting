@@ -10,7 +10,7 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/test_seg_b128e500s200lr1e-3_r020tr64-16_te64_bn1024_simocc \
+  --checkpoint checkpoint/test_seg_b128e500s200lr1e-3_r020tr64-16_te64_bn1024_simocc_test \
   --dataset shapenet \
   --categories Airplane,Bag,Cap,Car,Chair,Earphone,Guitar,Knife,Lamp,Laptop,Motorbike,Mug,Pistol,Rocket,Skateboard,Table \
   --task segmentation \
@@ -20,6 +20,5 @@ docker run -it --rm \
   --radius 0.20 \
   --bottleneck 1024 \
   --num_vote_test 64 \
-  --is_rand \
   --is_vote \
   --is_simuOcc \

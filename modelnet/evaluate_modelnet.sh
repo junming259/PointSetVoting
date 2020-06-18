@@ -9,7 +9,7 @@ docker run -it --rm \
   completion-pc \
   python ../utils/main.py \
   --eval \
-  --checkpoint checkpoint/test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere \
+  --checkpoint checkpoint/test_cls_modelnet_b64e500s200lr1e-3_r020tr64-10_te16_bn1024_sphere_test \
   --dataset modelnet \
   --task classification \
   --num_pts 1024 \
@@ -18,7 +18,6 @@ docker run -it --rm \
   --radius 0.20 \
   --bottleneck 1024 \
   --num_vote_test 128 \
-  --is_rand \
   --is_vote \
   --is_simuOcc \
   --norm sphere \
