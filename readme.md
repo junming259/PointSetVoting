@@ -16,7 +16,6 @@ and point cloud completion.
 - Pytorch:1.4.0
 - [PyTorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 - CUDA 10.1
-- open3D (optional for visulaization of point clouds)
 
 ## Directory Structure
 
@@ -43,8 +42,8 @@ and point cloud completion.
 │   └── tensorboard.sh
 │
 ├── utils
-│   ├── main.py
 │   ├── class_completion3D.py
+│   ├── main.py
 │   ├── model_utils.py
 │   └── models.py
 │
@@ -82,8 +81,8 @@ cd modelnet/
 bash tensorboard.sh
 ```
 
-+ Evaluate the trained model. Make sure the `--checkpoint` in `evaluate_modelnet.sh`
-is consistent with the one in `train_modelnet.sh`.
++ Evaluate the trained model. Make sure parameters in `evaluate_modelnet.sh`
+is consistent with those in `train_modelnet.sh`.
 ```shell
 cd modelnet/
 bash evaluate_modelnet.sh
@@ -96,7 +95,7 @@ bash evaluate_modelnet.sh
 The [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
 (674M) dataset is used to perform part segmentation task. Download dataset and
 save it to `data_root/`. You can set the `--categories` in ` train_shapenet.sh` to
-specify which category or categories of object will be used.
+specify which category or categories of object will be trained.
 
 + Train the model. Specify which GPU devices to be used, and change `--gpus` option
 in ` train_shapenet.sh` to support multi-GPU training.
@@ -111,18 +110,22 @@ cd shapnet_seg/
 bash tensorboard.sh
 ```
 
-+ Evaluate your trained model. Make sure the `--checkpoint` in `evaluate_shapenet.sh`
-is consistent with the one in ` train_shapenet.sh`.
++ Evaluate your trained model. Make sure the parameters in `evaluate_shapenet.sh`
+is consistent with those in ` train_shapenet.sh`. Sample predicted part segmentation
+results are saved into `shapenet_seg/checkpoint/{model_name}/eval_sample_results/`.
 ```shell
 cd shapnet_seg/
 bash evaluate_shapenet.sh
 ```
 
-<!-- + Visualize sample completion results. After evaluation sample completion results are saved in `shapnet/checkpoint/{model_name}/eval_sample_results/`. The results can be visualized by running:
++ Visualize sample part segmentation results. After evaluation, three `.npy` files are saved
+for each sample: `pos_{idx}.npy` contains the input point clouds; `pred_{idx}.npy` contains
+the predicted part labels; `label_{idx}.npy` contains the ground-truth labels. The results
+can be visualized by running:
 ```shell
 cd visulaization/
-python3 visualize_results_pro.py
-``` -->
+python3 visualize_part_segmentation.py --model_name {model name} --idx {idx}
+``` 
 
 
 
