@@ -124,13 +124,12 @@ bash evaluate_shapenet.sh
 
 + Visualize sample part segmentation results. After evaluation, three `.npy` files are saved
 for each sample: `pos_{idx}.npy` contains the input point clouds; `pred_{idx}.npy` contains
-the predicted part labels; `label_{idx}.npy` contains the ground-truth labels. The results
-can be visualized by running:
+the predicted part labels; `label_{idx}.npy` contains the ground-truth labels. Sample output 
+can be found [here](figures/visualization_part_segmentation.png).
 ```shell
 cd visulaization/
 python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 ``` 
-Sample output can be found [here](figures/visualization_part_segmentation.png).
 
 
 ## Point Clouds Completion on Completion3D
@@ -147,10 +146,9 @@ Sample output can be found [here](figures/visualization_part_segmentation.png).
 + Visualize sample point clouds completionn results. After evaluation, four `.npy` files are saved
 for each sample: `pos_{idx}.npy` contains the complete point clouds; `pred_{idx}.npy` contains
 the predicted complete point clouds; `pos_observed_{idx}.npy` contains the observed partial point
-clouds; `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds. The results
-can be visualized by running:
+clouds; `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds. Sample 
+output can be found [here](figures/visualization_point_clouds_completion.png).
 ```shell
 cd visulaization/
 python3 visualize_point_clouds_completion.py --model_name {model name} --idx {idx}
 ``` 
-Sample output can be found [here](figures/visualization_point_clouds_completion.png).
