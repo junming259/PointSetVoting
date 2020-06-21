@@ -18,6 +18,7 @@ and point cloud completion.
 - CUDA 10.1
 - open3D (optinoal for visualization of points clouds completion)
 
+
 ## Directory Structure
 
 ```
@@ -64,6 +65,7 @@ The code is containterized. Build docker image:
 $ bash build.sh
 ```
 
+
 ## Shape Classification on ModelNet40
 The [ModelNet40](http://modelnet.cs.princeton.edu/ModelNet40.zip) (415M) dataset
 is used to perform shape classification task. To do point clouds classification,
@@ -88,6 +90,7 @@ is consistent with those in `train_modelnet.sh`.
 cd modelnet/
 bash evaluate_modelnet.sh
 ```
+
 
 ## Part Segmentation on ShapeNet
 
@@ -125,12 +128,12 @@ the predicted part labels; `label_{idx}.npy` contains the ground-truth labels. T
 can be visualized by running:
 ```shell
 cd visulaization/
-python3 visualize_part_segmentation.py --model_name {model name} --idx {idx}
+python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 ``` 
+Sample output can be found [here](figures/visualization_part_segmentation.png).
 
 
-
-### Point Clouds Completion on Completion3D
+## Point Clouds Completion on Completion3D
 
 ![](figures/completion.png)
 
@@ -150,4 +153,4 @@ can be visualized by running:
 cd visulaization/
 python3 visualize_point_clouds_completion.py --model_name {model name} --idx {idx}
 ``` 
-![](figures/visualization_point_clouds_completion.png)
+Sample output can be found [here](figures/visualization_point_clouds_completion.png).
