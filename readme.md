@@ -16,6 +16,7 @@ and point cloud completion.
 - Pytorch:1.4.0
 - [PyTorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 - CUDA 10.1
+- open3D (optinoal for visualization of points clouds completion)
 
 ## Directory Structure
 
@@ -111,7 +112,7 @@ bash tensorboard.sh
 ```
 
 + Evaluate your trained model. Make sure the parameters in `evaluate_shapenet.sh`
-is consistent with those in ` train_shapenet.sh`. Sample predicted part segmentation
+is consistent with those in `train_shapenet.sh`. Sample predicted part segmentation
 results are saved into `shapenet_seg/checkpoint/{model_name}/eval_sample_results/`.
 ```shell
 cd shapnet_seg/
@@ -129,13 +130,24 @@ python3 visualize_part_segmentation.py --model_name {model name} --idx {idx}
 
 
 
-### Completion3D (Weijia)
+### Point Clouds Completion on Completion3D
 
 ![](figures/completion.png)
 
-To do: training model on [Completion3D benchmark](https://completion3d.stanford.edu/).
-A customized dataset would be preferred. You can find an [example](https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/shapenet.html#ShapeNet) and [tutorials](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html).
++ Give a short introduction of completion3D dataset. Link to completion3D benckmark.
 
-The finished dataset class you implement should be used similarly to [ModelNet](https://pytorch-geometric.readthedocs.io/en/latest/modules/datasets.html#torch_geometric.datasets.ModelNet) and [ShapeNet](https://pytorch-geometric.readthedocs.io/en/latest/modules/datasets.html#torch_geometric.datasets.ShapeNet). Please check the function ```load_dataset()``` in ```utils/main.py``` to see how the dataset object is defined. Please check the function ```train_one_epoch()``` in ```utils/main.py``` to see how the dataset is loading the data and what the output looks like.
++ train
 
-Your job is to train and evaluate our proposed method on Completion3D dataset. Specifically, create a similar table as the Table 1. in the [TopNet](http://openaccess.thecvf.com/content_CVPR_2019/papers/Tchapmi_TopNet_Structural_Point_Cloud_Decoder_CVPR_2019_paper.pdf) and add a column showing our results.  
++ evaluation
+
+
++ Visualize sample point clouds completionn results. After evaluation, four `.npy` files are saved
+for each sample: `pos_{idx}.npy` contains the complete point clouds; `pred_{idx}.npy` contains
+the predicted complete point clouds; `pos_observed_{idx}.npy` contains the observed partial point
+clouds; `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds. The results
+can be visualized by running:
+```shell
+cd visulaization/
+python3 visualize_point_clouds_completion.py --model_name {model name} --idx {idx}
+``` 
+![](figures/visualization_point_clouds_completion.png)
