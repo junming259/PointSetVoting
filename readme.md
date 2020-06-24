@@ -136,6 +136,12 @@ python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 
 ![](figures/completion.png)
 
+Besides filling this section, 1) remote commented code in `class_completion3D.py`; 2) to make
+notation consistent, I suggest to load `train` and `val` set during training. Curently, no label
+is loaded when `val` set is specified; 3) write a sample program for demo. Idally, the program
+will load pretained model and process all `.npy` files in user-specified folder, and output
+predicted results. 
+
 + Give a short introduction of completion3D dataset. Link to completion3D benckmark.
 
 + train
