@@ -44,7 +44,7 @@ def simulate_partial_point_clouds(data, npts, task):
             # mask out half side of points
             mask = pos[i].matmul(vec) > 0
             p = pos[i][mask]
-            if p.size(0) >= 256:
+            if p.size(0) >= 300:
                 break
 
         # mask = pos[i, :, 2]>0

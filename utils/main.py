@@ -173,83 +173,84 @@ def evaluate(args, loader, save_dir):
         categories_summary = {k:[] for k in loader.dataset.idx2cat.keys()}
         idx2cat = loader.dataset.idx2cat
 
-    for j, data in enumerate(loader, 0):
-        data = data.to(device)
-        pos, batch, label = data.pos, data.batch, data.y
-        try:
-            category = data.category
-        except AttributeError:
-            category = None
-
-        if args.is_simuOcc:
-            data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
-            pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
-        else:
-            pos_observed, batch_observed, label_observed = pos, batch, label
-
-        with torch.no_grad():
-            pred = model(None, pos_observed, batch_observed, category)
-            if args.task == 'completion':
-                # sampling in the latent space to generate diverse prediction
-                latent = model.module.optimal_z[0, :].view(1, -1)
-                idx = np.random.choice(args.num_vote_test, 1, False)
-                random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
-                random_latent = (random_latent + latent) / 2
-                pred_diverse = model.module.generate_pc_from_latent(random_latent)
-
-                # for i in range(16):
-                #     # latent = model.module.optimal_z[0, :].view(1, -1)
-                #     # idx = np.random.choice(args.num_vote_test, 1, False)
-                #     # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
-                #     # random_latent = (random_latent + latent) / 2
-                #
-                #     random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
-                #     pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
-                #     pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
-                #     np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
-
-        if args.task == 'classification':
-            pred = pred.max(1)[1]
-            results.append(pred.eq(label).float())
-
-        if args.task == 'segmentation':
-            pred = pred.max(1)[1]
-            i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
-            intersections.append(i.to(torch.device('cpu')))
-            unions.append(u.to(torch.device('cpu')))
-            categories.append(category.to(torch.device('cpu')))
-
-            pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-            pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
-            label_observed = label_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
-            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos_observed)
-            np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-            np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
-
-        if args.task == 'completion':
-            # # save key points for visualization
-            # key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
-            # key_pos = key_pos.cpu().detach().numpy()[0]
-            # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-
-            if args.dataset == 'completion3D':
-                # use the label(complete point clouds) for testing
-                results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
-                pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+    for _ in range(10):
+        for j, data in enumerate(loader, 0):
+            data = data.to(device)
+            pos, batch, label = data.pos, data.batch, data.y
+            try:
+                category = data.category
+            except AttributeError:
+                category = None
+    
+            if args.is_simuOcc:
+                data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
+                pos_observed, batch_observed, label_observed = data_observed.pos, data_observed.batch, data_observed.y
             else:
-                # no label(complete point clouds) provided
-                results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
-                pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-
-            categories.append(category.to(torch.device('cpu')))
-            pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-            pred = pred.cpu().detach().numpy()[0]
-            pred_diverse = pred_diverse.cpu().detach().numpy()[0]
-            np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-            np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-            np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-            np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
-
+                pos_observed, batch_observed, label_observed = pos, batch, label
+    
+            with torch.no_grad():
+                pred = model(None, pos_observed, batch_observed, category)
+                if args.task == 'completion':
+                    # sampling in the latent space to generate diverse prediction
+                    latent = model.module.optimal_z[0, :].view(1, -1)
+                    idx = np.random.choice(args.num_vote_test, 1, False)
+                    random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
+                    random_latent = (random_latent + latent) / 2
+                    pred_diverse = model.module.generate_pc_from_latent(random_latent)
+    
+                    # for i in range(16):
+                    #     # latent = model.module.optimal_z[0, :].view(1, -1)
+                    #     # idx = np.random.choice(args.num_vote_test, 1, False)
+                    #     # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
+                    #     # random_latent = (random_latent + latent) / 2
+                    #
+                    #     random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
+                    #     pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
+                    #     pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
+                    #     np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
+    
+            if args.task == 'classification':
+                pred = pred.max(1)[1]
+                results.append(pred.eq(label).float())
+    
+            if args.task == 'segmentation':
+                pred = pred.max(1)[1]
+                i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
+                intersections.append(i.to(torch.device('cpu')))
+                unions.append(u.to(torch.device('cpu')))
+                categories.append(category.to(torch.device('cpu')))
+    
+                pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+                pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
+                label_observed = label_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
+                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos_observed)
+                np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+                np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
+    
+            if args.task == 'completion':
+                # # save key points for visualization
+                # key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
+                # key_pos = key_pos.cpu().detach().numpy()[0]
+                # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
+    
+                if args.dataset == 'completion3D':
+                    # use the label(complete point clouds) for testing
+                    results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
+                    pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+                else:
+                    # no label(complete point clouds) provided
+                    results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+                    pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+    
+                categories.append(category.to(torch.device('cpu')))
+                pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+                pred = pred.cpu().detach().numpy()[0]
+                pred_diverse = pred_diverse.cpu().detach().numpy()[0]
+                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+                np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+                np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+                np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
+    
     if args.task == 'completion':
         results = torch.cat(results, dim=0)
         category = torch.cat(categories, dim=0)
