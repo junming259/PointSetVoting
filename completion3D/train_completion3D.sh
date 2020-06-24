@@ -1,6 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='4,5,6,7'"' \
+  --gpus '"device='0,1,2,3'"' \
   -u $(id -u):$(id -g) \
   -v $(pwd):/cpc/training \
   -v $(pwd)/../utils:/cpc/utils \
@@ -8,7 +8,7 @@ docker run -it --rm \
   -w /cpc/training \
   completion-pc \
   python ../utils/main.py \
-  --model_name cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024_trainval_test \
+  --model_name cpc3d_b64e500s200lr2e-4_r010tr64-10_te32_bn1024 \
   --dataset completion3D \
   --categories plane,cabinet,car,chair,lamp,couch,table,watercraft \
   --task completion \
