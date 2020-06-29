@@ -142,12 +142,22 @@ is loaded when `val` set is specified; 3) write a sample program for demo. Idall
 will load pretained model and process all `.npy` files in user-specified folder, and output
 predicted results. 
 
-+ Give a short introduction of completion3D dataset. Link to completion3D benckmark.
+The [Completion3D](http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip)
+(1.5GB) dataset is used to evaluate 3D object point cloud completion methods. A partial 3D object point cloud is given to infer a complete 3D object point cloud for the object. Download dataset and save it to `data_root/`. You can set the `--categories` in ` train_completion3D.sh` to specify which category or categories of object will be trained.
 
-+ train
++ Train the model. Specify which GPU devices to be used, and change `--gpus` option
+in ` train_completion3D.sh` to support multi-GPU training.
+```shell
+cd completion3D/
+bash train_completion3D.sh
 
-+ evaluation
-
++ Evaluate your trained model. Make sure the parameters in `evaluate_completion3D.sh`
+is consistent with those in `train_completion3D.sh`. Sample predicted part segmentation
+results are saved into `completion3D/checkpoint/{model_name}/eval_sample_results/`.
+```shell
+cd completion3D/
+bash evaluate_completion3D.sh
+```
 
 + Visualize sample point clouds completionn results. After evaluation, four `.npy` files are saved
 for each sample: `pos_{idx}.npy` contains the complete point clouds; `pred_{idx}.npy` contains
