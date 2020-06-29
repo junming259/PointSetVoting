@@ -31,19 +31,12 @@ def evaluate(args, loader, save_dir):
     model.eval()
     results = []
     intersections, unions, categories = [], [], []
-    # if args.task == 'completion':
-    #     categories_summary = {k:[] for k in loader.dataset.idx2cat.keys()}
-    #     idx2cat = loader.dataset.idx2cat
 
     for _ in range(10):
         for j, data in enumerate(loader, 0):
             data = data.to(device)
             pos, batch = data.pos, data.batch
-            try:
-                category = data.category
-            except AttributeError:
-                category = None
-                
+
             if args.is_simuOcc:
                 data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
                 pos_observed, batch_observed = data_observed.pos, data_observed.batch
@@ -51,7 +44,7 @@ def evaluate(args, loader, save_dir):
                 pos_observed, batch_observed = pos, batch
     
             with torch.no_grad():
-                pred = model(None, pos_observed, batch_observed, category)
+                pred = model(None, pos_observed, batch_observed, None)
                 if args.task == 'completion':
                     # sampling in the latent space to generate diverse prediction
                     latent = model.module.optimal_z[0, :].view(1, -1)
@@ -59,27 +52,8 @@ def evaluate(args, loader, save_dir):
                     random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
                     random_latent = (random_latent + latent) / 2
                     pred_diverse = model.module.generate_pc_from_latent(random_latent)
-    
-                    # for i in range(16):
-                    #     # latent = model.module.optimal_z[0, :].view(1, -1)
-                    #     # idx = np.random.choice(args.num_vote_test, 1, False)
-                    #     # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
-                    #     # random_latent = (random_latent + latent) / 2
-                    #
-                    #     random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
-                    #     pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
-                    #     pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
-                    #     np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
-
-    
+  
             if args.task == 'completion':
-                # # save key points for visualization
-                # key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
-                # key_pos = key_pos.cpu().detach().numpy()[0]
-                # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-                # pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-    
-                categories.append(category.to(torch.device('cpu')))
                 pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
                 pred = pred.cpu().detach().numpy()[0]
                 pred_diverse = pred_diverse.cpu().detach().numpy()[0]
@@ -97,11 +71,6 @@ def load_dataset(args):
     # load completion3D dataset
     if args.dataset == 'completion3D':
         pre_transform, transform = augment_transforms(args)
-        # pre_transform = None
-        # if args.randRotY:
-        #     transform = T.Compose([T.FixedPoints(args.num_pts), T.RandomRotate(180, axis=1)])
-        # else:
-        #     transform =T.FixedPoints(args.num_pts)
         
         categories = args.categories.split(',')
 

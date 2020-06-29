@@ -131,7 +131,7 @@ class completion3D_class(InMemoryDataset):
                 fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
                 pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
-            data = Data(pos=pos, category=cat_idx[cat])
+            data = Data(pos=pos)
   
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
