@@ -150,6 +150,7 @@ in ` train_completion3D.sh` to support multi-GPU training.
 ```shell
 cd completion3D/
 bash train_completion3D.sh
+```
 
 + Evaluate your trained model. Make sure the parameters in `evaluate_completion3D.sh`
 is consistent with those in `train_completion3D.sh`. Sample predicted part segmentation
