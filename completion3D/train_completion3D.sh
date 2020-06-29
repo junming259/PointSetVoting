@@ -1,7 +1,6 @@
 #!/bin/bash
 docker run -it --rm \
-  --gpus '"device='0,1,2,3'"' \
-  -u $(id -u):$(id -g) \
+  --gpus '"device='0'"' \
   -v $(pwd):/cpc/training \
   -v $(pwd)/../utils:/cpc/utils \
   -v $(pwd)/../data_root:/cpc/data_root \
