@@ -108,7 +108,7 @@ class completion3D_class(InMemoryDataset):
         extract_zip(path, self.root)
         os.unlink(path)
         shutil.rmtree(self.raw_dir)
-        name = 'completion3D'
+        name = 'shapenet'
         os.rename(osp.join(self.root, name), self.raw_dir)
 
     def process_filenames(self, filenames, split_in_loop):
