@@ -4,7 +4,7 @@ import shutil
 import json
 import h5py
 import torch
-
+import glob
 from torch_geometric.data import (Data, InMemoryDataset, download_url,
                                   extract_zip)
 from torch_geometric.io import read_txt_array
@@ -110,25 +110,15 @@ class completion3D_class(InMemoryDataset):
 
     def process_filenames(self, filenames, split_in_loop):
         data_list = []
-        # categories_ids :
-        # ['02691156', '02828884', '02933112', '02958343', '03001627', '03211117', 
-        # '03636649', '03691459', '04090263', '04256520', '04379243', '04401088', '04530566']
-        categories_ids = [self.category_ids[cat] for cat in self.categories]
-        # i : 0 -> num of classes; 
-        # cat_idx : {'02691156': 0, '02828884': 1, '02933112': 2, '02958343': 3, '03001627': 4,
-        # '03211117': 5, '03636649': 6, '03691459': 7, '04090263': 8, '04256520': 9, '04379243'
-        # : 10, '04401088': 11, '04530566': 12}
-        cat_idx = {categories_ids[i]: i for i in range(len(categories_ids))}
-        #name : 04530566/786f18c5f99f7006b1d1509c24a9f631
-        #name.split(osp.sep) : ['04530566', '786f18c5f99f7006b1d1509c24a9f631']
-        for name in filenames:
-            cat = name.split(osp.sep)[0]
 
+        for name in filenames:
+            name = str(name)
             fpos = None
             pos = None
 
             if split_in_loop == 'test':
-                fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
+                # fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
+                fpos = h5py.File(name, 'r')
                 pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
             data = Data(pos=pos)
@@ -143,19 +133,13 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        for i, split in enumerate(['test']):
-            print('in the loop')
-            path = None
-            if split == 'test':
-                path = osp.join(self.raw_dir, 'test.list')
-            with open(path, 'r') as f:
-                tmp = ".h5"
-                filenames = [                    
-                    (name[0: -1] + tmp)
-                    for name in f
-                ]
-            data_list = self.process_filenames(filenames, split)
-            torch.save(self.collate(data_list), self.processed_paths[0])
+        # for i, split in enumerate(['test']):
+        print('in the process')
+        path = glob.glob(f'{self.raw_dir}/*.h5') 
+        print('path')
+        print(path)
+        data_list = self.process_filenames(path, 'test')
+        torch.save(self.collate(data_list), self.processed_paths[0])
         print('end of process()')
 
     def __repr__(self):

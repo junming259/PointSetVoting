@@ -4,8 +4,6 @@ import open3d as o3d
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.pyplot as plt
 
-
-
 def rotate(pos, deg, axis):
     degree = np.pi * deg / 180.0
     sin, cos = np.sin(degree), np.cos(degree)
@@ -44,7 +42,7 @@ args = parser.parse_args()
 
 #idx = '13'
 #model_name = 'cpc3d_b64e500s200lr2e-4_r010tr64-16_te32_bn1024'
-base_dir = '../completion3D/pretrained/{}/eval_sample_results'.format(args.model_name)
+base_dir = '../demo/pretrained/{}/eval_sample_results'.format(args.model_name)
 
 # load observed partial points
 filename = '{}/pos_observed_{}.npy'.format(base_dir, args.idx)
