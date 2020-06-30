@@ -96,32 +96,23 @@ class completion3D_class(InMemoryDataset):
             for split in ['test']
         ]
 
-    # def download(self):
-    #     path = download_url(self.url, self.root)
-    #     extract_zip(path, self.root)
-    #     os.unlink(path)
-    #     shutil.rmtree(self.raw_dir)
-    #     # name = self.url.split('/')[-1].split('.')[0]
-    #     name = 'shapenet'
-    #     os.rename(osp.join(self.root, name), self.raw_dir)
-    #     # print(osp.join(self.root, name))
-    #     # print(self.raw_dir)
-    #     print('end of download')
-
     def process_filenames(self, filenames, split_in_loop):
         data_list = []
 
         for name in filenames:
+            #convert name (an item in the filenames list) to str
             name = str(name)
+
             fpos = None
             pos = None
 
             if split_in_loop == 'test':
-                # fpos = h5py.File(osp.join(osp.join(self.raw_dir, f'{split_in_loop}/partial'), name), 'r')
                 fpos = h5py.File(name, 'r')
                 pos = torch.tensor(fpos['data'], dtype=torch.float32)
 
-            data = Data(pos=pos)
+            result_name = os.path.splitext(os.path.basename(name))[0]
+            
+            data = Data(pos = pos, resName = result_name)
   
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
@@ -133,7 +124,6 @@ class completion3D_class(InMemoryDataset):
 
     def process(self):
         trainval = []
-        # for i, split in enumerate(['test']):
         print('in the process')
         path = glob.glob(f'{self.raw_dir}/*.h5') 
         print('path')

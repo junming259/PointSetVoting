@@ -36,6 +36,7 @@ def evaluate(args, loader, save_dir):
         for j, data in enumerate(loader, 0):
             data = data.to(device)
             pos, batch = data.pos, data.batch
+            result_name = data.resName
 
             if args.is_simuOcc:
                 data_observed = simulate_partial_point_clouds(data, args.num_pts_observed, args.task)
@@ -57,10 +58,10 @@ def evaluate(args, loader, save_dir):
                 pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
                 pred = pred.cpu().detach().numpy()[0]
                 pred_diverse = pred_diverse.cpu().detach().numpy()[0]
-                # np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-                np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-                np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-                np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
+                result_name = str(result_name)[3:-3]
+                np.save(os.path.join(save_dir, 'pos_observed_' + result_name), pos_observed)
+                np.save(os.path.join(save_dir, 'pred_' + result_name), pred)
+                np.save(os.path.join(save_dir, 'pred_diverse_' + result_name), pred_diverse)
 
     print('{} point clouds are evaluated.'.format(len(loader.dataset)))
 
