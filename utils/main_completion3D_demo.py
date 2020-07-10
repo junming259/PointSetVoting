@@ -184,7 +184,7 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(model_path))
         print('Load model successfully from: {}'.format(args.checkpoint))
 
-        save_dir = os.path.join(args.checkpoint, 'eval_sample_results')
+        save_dir = os.path.join('./partial_point_cloud_demo', 'completion')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         evaluate(args=args, loader=test_dataloader, save_dir=save_dir)
