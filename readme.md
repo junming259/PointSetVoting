@@ -53,6 +53,10 @@ and point cloud completion.
 │   ├── visualize_results_pro.py
 │   └── visualize_results.py
 │
+├── demo
+│   ├── point_cloud_completion_demo.sh
+│   └── partial_point_cloud_demo
+│
 ├── Dockerfile
 ├── build.sh
 └── readme.md
@@ -132,7 +136,7 @@ python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 ``` 
 
 
-## Point Clouds Completion on Completion3D
+## Point Cloud Completion on Completion3D
 
 ![](figures/completion.png)
 
@@ -143,7 +147,11 @@ will load pretained model and process all `.npy` files in user-specified folder,
 predicted results. 
 
 The [Completion3D](http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip)
-(1.5GB) dataset is used to evaluate 3D object point cloud completion methods. A partial 3D object point cloud is given to infer a complete 3D object point cloud for the object. Download dataset and save it to `data_root/`. You can set the `--categories` in ` train_completion3D.sh` to specify which category or categories of object will be trained.
+(1.5GB) dataset is used to evaluate 3D object point cloud completion methods.
+Specifically, partial point clouds are taken as inputs and the goal is to infer
+complete point clouds . Download dataset and save it to `data_root/`. You can
+set the `--categories` in ` train_completion3D.sh` to specify which category or
+categories of object will be trained.
 
 + Train the model. Specify which GPU devices to be used, and change `--gpus` option
 in ` train_completion3D.sh` to support multi-GPU training.
@@ -160,12 +168,25 @@ cd completion3D/
 bash evaluate_completion3D.sh
 ```
 
-+ Visualize sample point clouds completionn results. After evaluation, four `.npy` files are saved
-for each sample: `pos_{idx}.npy` contains the complete point clouds; `pred_{idx}.npy` contains
-the predicted complete point clouds; `pos_observed_{idx}.npy` contains the observed partial point
-clouds; `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds. Sample 
-output can be found [here](figures/visualization_point_clouds_completion.png).
++ Visualize sample point clouds completionn results. After evaluation, four
+`.npy` files are saved for each sample: `pos_{idx}.npy` contains the complete
+point clouds; `pred_{idx}.npy` contains the predicted complete point clouds;
+`pos_observed_{idx}.npy` contains the observed partial point clouds;
+`pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds.
+Sample output can be found
+[here](figures/visualization_point_clouds_completion.png).
 ```shell
 cd visulaization/
 python3 visualize_point_clouds_completion.py --model_name {model name} --idx {idx}
 ``` 
+
+
+## Demo for Point Cloud Completion
+Demo for customized point cloud completion. Please put input partial point
+clouds in `demo/partial_point_clouds_demo/raw/`. Note input point clouds should
+be in `.h5` format, the same one as in Completion3D. After running, predicted
+compeltion results will be saved to `/partial_point_clouds_demo/completion/`.
+```shell
+cd demo/
+./point_cloud_completion_demo.sh
+```
