@@ -3,7 +3,7 @@ import numpy as np
 import sys
 import torch.nn.functional as F
 from torch_geometric.nn import PointConv, fps, radius
-from .model_utils import mlp, create_batch_one_hot_category
+from .model_utils import mlp, create_batch_one_hot_category, chamfer_loss
 
 
 class Model(torch.nn.Module):
@@ -18,7 +18,6 @@ class Model(torch.nn.Module):
         num_vote_train: int, the number of votes during training
         num_contrib_vote_train: int, the maximum number of selected votes during training
         num_vote_test: int, the number of votes during test
-        is_fidReg: bool, flag for fidelity regularization during training
     """
 
     def __init__(
@@ -55,7 +54,7 @@ class Model(torch.nn.Module):
         if task == 'segmentation':
             self.decoder = Segmentator(bottleneck, 50)
 
-    def forward(self, x=None, pos=None, batch=None, category=None):
+    def forward(self, x=None, pos=None, batch=None, category=None, label=None):
         batch = batch - batch.min()
 
         x = self.transformer(pos)
@@ -84,7 +83,18 @@ class Model(torch.nn.Module):
             pred = self.decoder(optimal_z, x, one_hot_category)
         else:
             pred = self.decoder(optimal_z)
-        return pred
+
+        # compute loss
+        if self.task == 'completion':
+            loss = chamfer_loss(pred, label.view(pred.size(0), -1, 3))
+        elif self.task == 'classification':
+            loss = F.nll_loss(pred, label, reduction='none')
+        elif self.task == 'segmentation':
+            loss = F.nll_loss(pred, label, reduction='none')
+        else:
+            assert False
+
+        return pred, loss
 
     def generate_pc_from_latent(self, x):
         """

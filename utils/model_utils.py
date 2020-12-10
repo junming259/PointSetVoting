@@ -68,6 +68,27 @@ def simulate_partial_point_clouds(data, npts, task):
     return data
 
 
+class NormalizeBox(object):
+    """
+    Normalize point clouds from constructed bounding boxes with maximum
+    dimension 1.
+    """
+    def __call__(self, data):
+        box_corner_min = data.pos.min(dim=0, keepdim=True)[0]
+        box_corner_max = data.pos.max(dim=0, keepdim=True)[0]
+        box_dim = box_corner_max - box_corner_min
+        box_center = box_corner_min + box_dim/2
+        
+        data.pos = data.pos - box_center
+
+        scale = (1 / box_dim.max()) * 0.999999
+        data.pos = data.pos * scale
+        return data
+
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
+
+
 class NormalizeSphere(object):
     """
     Normalize point clouds into a unit sphere
@@ -125,6 +146,8 @@ def augment_transforms(args):
     pre_transform = None
     if args.norm == 'scale':
         pre_transform = T.NormalizeScale()
+    elif args.norm == 'bbox':
+        pre_transform = NormalizeBox()
     elif args.norm == 'sphere':
         pre_transform = NormalizeSphere(center=True)
     elif args.norm == 'sphere_wo_center':

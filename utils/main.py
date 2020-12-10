@@ -28,6 +28,11 @@ torch.manual_seed(seed)
 
 
 def train_one_epoch(args, loader, optimizer, logger, epoch):
+    '''
+    Note: only complete point clouds are loaded during training, so data.x is
+    both the input and label for the point cloud completion task. While partial
+    point clouds (data.y) are loaded at testing.
+    '''
 
     model.train()
     loss_summary = {}
@@ -35,24 +40,33 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
 
     for j, data in enumerate(loader, 0):
         data = data.to(device)
-        pos, batch, label = data.pos, data.batch, data.y
+        pos, batch = data.pos, data.batch
+        label = pos if args.task == 'completion' else data.y
         category = data.category if args.task == 'segmentation' else None
 
         # training
         model.zero_grad()
-        pred = model(None, pos, batch, category)
+        pred, loss = model(None, pos, batch, category, label)
+        loss = loss.mean()
 
         if args.task == 'completion':
-            loss_summary['loss_chamfer'] = chamfer_loss(pred, pos.view(-1, args.num_pts, 3)).mean()
-            loss = loss_summary['loss_chamfer']
+            loss_summary['loss_chamfer'] = loss
         elif args.task == 'classification':
-            loss_summary['loss_cls'] = F.nll_loss(pred, label)
-            loss = loss_summary['loss_cls']
+            loss_summary['loss_cls'] = loss
         elif args.task == 'segmentation':
-            loss_summary['loss_seg'] = F.nll_loss(pred, label)
-            loss = loss_summary['loss_seg']
-        else:
-            assert False
+            loss_summary['loss_seg'] = loss
+
+        # if args.task == 'completion':
+            # loss_summary['loss_chamfer'] = chamfer_loss(pred, pos.view(-1, args.num_pts, 3)).mean()
+            # loss = loss_summary['loss_chamfer']
+        # elif args.task == 'classification':
+            # loss_summary['loss_cls'] = F.nll_loss(pred, label)
+            # loss = loss_summary['loss_cls']
+        # elif args.task == 'segmentation':
+            # loss_summary['loss_seg'] = F.nll_loss(pred, label)
+            # loss = loss_summary['loss_seg']
+        # else:
+            # assert False
 
         loss.backward()
         optimizer.step()
@@ -85,15 +99,16 @@ def test_one_epoch(args, loader, logger, epoch):
 
         # inference
         with torch.no_grad():
-            pred = model(None, pos_observed, batch_observed, category)
+            pred, loss = model(None, pos_observed, batch_observed, category, label)
 
         if args.task == 'completion':
-            if args.dataset == 'completion3D':
-                # use the label(complete point clouds) for testing
-                results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
-            else:
-                # no label(complete point clouds) provided
-                results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+            results.append(loss)
+            # if args.dataset == 'completion3D':
+                # # use the label(complete point clouds) for testing
+                # results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
+            # else:
+                # # no label(complete point clouds) provided
+                # results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
 
         if args.task == 'classification':
             pred = pred.max(1)[1]
@@ -418,7 +433,7 @@ if __name__ == '__main__':
                         help="the number of votes (sub point clouds) during test")
     parser.add_argument("--is_simuOcc", action='store_true',
                         help="flag for simulating partial point clouds during test.")
-    parser.add_argument("--norm", type=str, choices=['scale', 'sphere', 'sphere_wo_center'],
+    parser.add_argument("--norm", type=str, choices=['scale', 'bbox', 'sphere', 'sphere_wo_center'],
                         help="flag for normalization")
     parser.add_argument("--is_randRotY", action='store_true',
                         help="flag for random rotation along Y axis")
