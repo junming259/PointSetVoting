@@ -30,7 +30,7 @@ def sample(pos, n):
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', type=str, default='demo_inputs/',
                     help='Specify the path of input partial point clouds. \
-                        if path is a diretory, a random .npy will be choosen to
+                        if path is a diretory, a random .npy will be choosen to \
                         visualize.')
 args = parser.parse_args()
 

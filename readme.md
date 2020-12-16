@@ -55,7 +55,8 @@ and point cloud completion.
 │
 ├── demo
 │   ├── point_cloud_completion_demo.sh
-│   └── partial_point_cloud_demo
+│   ├── partial_point_cloud_demo.sh
+│   └── visualize.py
 │
 ├── Dockerfile
 ├── build.sh
@@ -140,12 +141,6 @@ python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 
 ![](figures/completion.png)
 
-Besides filling this section, 1) remote commented code in `class_completion3D.py`; 2) to make
-notation consistent, I suggest to load `train` and `val` set during training. Curently, no label
-is loaded when `val` set is specified; 3) write a sample program for demo. Idally, the program
-will load pretained model and process all `.npy` files in user-specified folder, and output
-predicted results. 
-
 The [Completion3D](http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip)
 (1.5GB) dataset is used to evaluate 3D object point cloud completion methods.
 Specifically, partial point clouds are taken as inputs and the goal is to infer
@@ -181,12 +176,44 @@ python3 visualize_point_clouds_completion.py --model_name {model name} --idx {id
 ``` 
 
 
-## Demo for Point Cloud Completion
-Demo for customized point cloud completion. Please put input partial point
-clouds in `demo/partial_point_clouds_demo/raw/`. Note input point clouds should
-be in `.h5` format, the same one as in Completion3D. After running, predicted
-compeltion results will be saved to `/partial_point_clouds_demo/completion/`.
-```shell
+## Demo 
+Here we provide a quick demo for point cloud completion. Specically, the
+[pretraiend model](https://drive.google.com/drive/folders/1P96RiD1ODsOTum6A0VLwKpcp4P94-tUM?usp=sharing)
+(pretrained only on cars from ShapeNet) is used to do point cloud completion on
+partial point clouds of vehicles generated from KITTI. The partial point cloud
+generation process can be found in
+[here](https://github.com/junming259/Partial_Point_Clouds_generatioin). Note
+that input point clouds should be in `.npy` format and in the shape of `(N, 3)`.
+For example, your input point clouds are in the `demo/demo_inputs/*.npy`
+
+```python
 cd demo/
-./point_cloud_completion_demo.sh
+python3 point_cloud_completion_demo.py \
+--data_path ${Path of partial point clouds} \
+--checkpoint ${Path of pretrained model}
+```
+
+After running, predicted compeltion results will be saved in the
+`demo/demo_results/`. Then visualize the results by running:
+
+```python
+python3 visualize.py \
+--data_path ${Input partial point clouds}
+```
+
+`--data_path` can be either set to a certain point cloud, such as
+`demo/demo_inputs/000000_car_point_1.npy`, or a directory containing input
+parital point clouds, such as `demo/demo_inputs`. In the later case, a random
+sample from `demo/demo_inputs/` will be selected to visualize. 
+
+
+## Citation
+If you find this project useful in your research, please consider cite:
+```
+@article{pointsetvoting,
+    title={Point Set Voting for Partial Point Cloud Analysis},
+    author={Zhang, Junming and Chen, Weijia and Wang, Yuping and Vasudevan, Ram and Johnson-Roberson, Matthew},
+    journal={arXiv preprint arXiv:2007.04537},
+    year={2020}
+}
 ```
