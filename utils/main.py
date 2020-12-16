@@ -204,7 +204,7 @@ def evaluate(args, loader, save_dir):
                 pos_observed, batch_observed, label_observed = pos, batch, label
     
             with torch.no_grad():
-                pred = model(None, pos_observed, batch_observed, category)
+                pred, loss = model(None, pos_observed, batch_observed, category, label)
                 if args.task == 'completion':
                     # sampling in the latent space to generate diverse prediction
                     latent = model.module.optimal_z[0, :].view(1, -1)
@@ -248,14 +248,17 @@ def evaluate(args, loader, save_dir):
                 # key_pos = key_pos.cpu().detach().numpy()[0]
                 # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
     
-                if args.dataset == 'completion3D':
-                    # use the label(complete point clouds) for testing
-                    results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
-                    pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-                else:
-                    # no label(complete point clouds) provided
-                    results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
-                    pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+                results.append(loss)
+                pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+
+                # if args.dataset == 'completion3D':
+                    # # use the label(complete point clouds) for testing
+                    # results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
+                    # pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+                # else:
+                    # # no label(complete point clouds) provided
+                    # results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
+                    # pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
     
                 categories.append(category.to(torch.device('cpu')))
                 pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]

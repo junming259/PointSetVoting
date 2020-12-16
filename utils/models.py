@@ -85,14 +85,16 @@ class Model(torch.nn.Module):
             pred = self.decoder(optimal_z)
 
         # compute loss
-        if self.task == 'completion':
-            loss = chamfer_loss(pred, label.view(pred.size(0), -1, 3))
-        elif self.task == 'classification':
-            loss = F.nll_loss(pred, label, reduction='none')
-        elif self.task == 'segmentation':
-            loss = F.nll_loss(pred, label, reduction='none')
-        else:
-            assert False
+        loss = None
+        if label is not None:
+            if self.task == 'completion':
+                loss = chamfer_loss(pred, label.view(pred.size(0), -1, 3))
+            elif self.task == 'classification':
+                loss = F.nll_loss(pred, label, reduction='none')
+            elif self.task == 'segmentation':
+                loss = F.nll_loss(pred, label, reduction='none')
+            else:
+                assert False
 
         return pred, loss
 
