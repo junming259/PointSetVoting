@@ -54,8 +54,7 @@ and point cloud completion.
 │   └── visualize_results.py
 │
 ├── demo
-│   ├── point_cloud_completion_demo.sh
-│   ├── partial_point_cloud_demo.sh
+│   ├── point_cloud_completion_demo.py
 │   └── visualize.py
 │
 ├── Dockerfile
@@ -102,39 +101,43 @@ bash evaluate_modelnet.sh
 ![](figures/part_segmentation.png)
 
 The [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
-(674M) dataset is used to perform part segmentation task. Download dataset and
-save it to `data_root/`. You can set the `--categories` in ` train_shapenet.sh` to
-specify which category or categories of object will be trained.
+(674M) dataset is used during experiments of part segmentation task. Download
+dataset and save it to `data_root/`. You can set the `--categories` in `
+train_shapenet.sh` to specify which category or categories of object will be
+trained.
 
-+ Train the model. Specify which GPU devices to be used, and change `--gpus` option
-in ` train_shapenet.sh` to support multi-GPU training.
-```shell
-cd shapnet_seg/
-bash train_shapenet.sh
-```
++ Enter `shapenet_seg/`
+    ```shell
+    cd shapnet_seg/
+    ```
 
-+ Visualize the training process by running Tensorboard.
-```shell
-cd shapnet_seg/
-bash tensorboard.sh
-```
++ Train the model.
+    ```shell
+    ./train_shapenet.sh
+    ```
 
-+ Evaluate your trained model. Make sure the parameters in `evaluate_shapenet.sh`
-is consistent with those in `train_shapenet.sh`. Sample predicted part segmentation
-results are saved into `shapenet_seg/checkpoint/{model_name}/eval_sample_results/`.
-```shell
-cd shapnet_seg/
-bash evaluate_shapenet.sh
-```
++ Visualize the training process in the Tensorboard.
+    ```shell
+    ./tensorboard.sh
+    ```
 
-+ Visualize sample part segmentation results. After evaluation, three `.npy` files are saved
-for each sample: `pos_{idx}.npy` contains the input point clouds; `pred_{idx}.npy` contains
-the predicted part labels; `label_{idx}.npy` contains the ground-truth labels. Sample output 
-can be found [here](figures/visualization_part_segmentation.png).
-```shell
-cd visulaization/
-python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
-``` 
++ Evaluate your trained model. Make sure the parameters in
+  `evaluate_shapenet.sh` is consistent with those in `train_shapenet.sh`. Sample
+  predicted part segmentation results are saved into:
+  `shapenet_seg/checkpoint/{model_name}/eval_sample_results/`.
+    ```shell
+    ./evaluate_shapenet.sh
+    ```
+
++ Visualize sample part segmentation results. After evaluation, three `.npy`
+  files are saved for each sample: `pos_{idx}.npy` contains the input point
+  clouds; `pred_{idx}.npy` contains the predicted part labels; `label_{idx}.npy`
+  contains the ground-truth labels.
+    ```shell
+    cd visulaization/
+    python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
+    ``` 
+  ![](figures/visualization_part_segmentation.png)
 
 
 ## Point Cloud Completion on Completion3D
@@ -142,38 +145,40 @@ python3 visualize_part_segmentation.py --model_name {model_name} --idx {idx}
 ![](figures/completion.png)
 
 The [Completion3D](http://download.cs.stanford.edu/downloads/completion3d/dataset2019.zip)
-(1.5GB) dataset is used to evaluate 3D object point cloud completion methods.
+(1.5GB) dataset is used during experiments of point cloud completion task.
 Specifically, partial point clouds are taken as inputs and the goal is to infer
-complete point clouds . Download dataset and save it to `data_root/`. You can
-set the `--categories` in ` train_completion3D.sh` to specify which category or
+complete point clouds. Note that the sythetic partial point clouds are used
+during training. Download dataset and save it to `data_root/`. You can set the
+`--categories` in ` train_completion3D.sh` to specify which category or
 categories of object will be trained.
 
-+ Train the model. Specify which GPU devices to be used, and change `--gpus` option
-in ` train_completion3D.sh` to support multi-GPU training.
-```shell
-cd completion3D/
-bash train_completion3D.sh
-```
++ Enter `completion3D/`
+    ```shell
+    cd completion3D/ 
+    ```
 
-+ Evaluate your trained model. Make sure the parameters in `evaluate_completion3D.sh`
-is consistent with those in `train_completion3D.sh`. Sample predicted part segmentation
-results are saved into `completion3D/checkpoint/{model_name}/eval_sample_results/`.
-```shell
-cd completion3D/
-bash evaluate_completion3D.sh
-```
++ Train the model. 
+    ```shell
+    ./train_completion3D.sh 
+    ```
 
-+ Visualize sample point clouds completionn results. After evaluation, four
-`.npy` files are saved for each sample: `pos_{idx}.npy` contains the complete
-point clouds; `pred_{idx}.npy` contains the predicted complete point clouds;
-`pos_observed_{idx}.npy` contains the observed partial point clouds;
-`pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds.
-Sample output can be found
-[here](figures/visualization_point_clouds_completion.png).
-```shell
-cd visulaization/
-python3 visualize_point_clouds_completion.py --model_name {model name} --idx {idx}
-``` 
++ Evaluate the trained model. Make sure the parameters in the evaluation are
+  consistent with those during training. Sample predicted completion results are
+  saved into `completion3D/checkpoint/{model_name}/eval_sample_results/`.
+    ```shell
+    ./evaluate_completion3D.sh 
+    ```
+
++ Visualize point cloud completionn results. After evaluation, four `.npy` files
+  are saved for each sample: `pos_{idx}.npy` contains the complete point clouds;
+  `pred_{idx}.npy` contains the predicted complete point clouds;
+  `pos_observed_{idx}.npy` contains the observed partial point clouds;
+  `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds.
+    ```shell
+    cd visulaization/
+    python3 visualize_point_clouds_completion.py --model_name {model_name} --idx {idx}
+    ``` 
+  ![](figures/visualization_point_clouds_completion.png).
 
 
 ## Demo 
@@ -184,27 +189,28 @@ partial point clouds of vehicles generated from KITTI. The partial point cloud
 generation process can be found in
 [here](https://github.com/junming259/Partial_Point_Clouds_generatioin). Note
 that input point clouds should be in `.npy` format and in the shape of `(N, 3)`.
-For example, your input point clouds are in the `demo/demo_inputs/*.npy`
+For example, if your input point clouds are in the `demo/demo_inputs/*.npy` and
+pretrained model is in the `demo/model.pth`, run the following command:
 
-```python
+```shell
 cd demo/
 python3 point_cloud_completion_demo.py \
---data_path ${Path of partial point clouds} \
---checkpoint ${Path of pretrained model}
+--data_path demo_inputs \
+--checkpoint model.pth \
 ```
 
 After running, predicted compeltion results will be saved in the
 `demo/demo_results/`. Then visualize the results by running:
 
-```python
+```shell
 python3 visualize.py \
---data_path ${Input partial point clouds}
+--data_path demo_results/${Input partial point clouds}.npy
 ```
 
 `--data_path` can be either set to a certain point cloud, such as
-`demo/demo_inputs/000000_car_point_1.npy`, or a directory containing input
-parital point clouds, such as `demo/demo_inputs`. In the later case, a random
-sample from `demo/demo_inputs/` will be selected to visualize. 
+`demo_inputs/000000_car_point_1.npy`, or a directory containing input
+parital point clouds, such as `demo_inputs`. In the later case, a random
+sample from `demo_inputs/` will be selected to visualize. 
 
 
 ## Citation

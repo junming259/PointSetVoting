@@ -67,7 +67,7 @@ def main():
     model = torch.nn.DataParallel(model)
 
     # load model
-    model_path = os.path.join(args.checkpoint, 'model.pth')
+    model_path = args.checkpoint
     if not os.path.isfile(model_path):
         raise ValueError('{} does not exist. Please provide a valid path for pretrained model!'.format(model_path))
     model.load_state_dict(torch.load(model_path))
@@ -98,7 +98,7 @@ def parse_args():
     parser.add_argument("--data_path", type=str,
                         help="path of folder containing the input PCs")
     parser.add_argument("--checkpoint", type=str,
-                        help="directory which contains pretrained model (.pth)")
+                        help="path of pretrained model (.pth)")
 
     args = parser.parse_args()
     return args
