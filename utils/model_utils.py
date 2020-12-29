@@ -156,13 +156,13 @@ def augment_transforms(args):
         pass
 
     transform = []
-    if args.dataset == 'shapenet':
+    # Shapenet
+    if args.task == 'segmentation':
         transform.append(T.FixedPoints(args.num_pts))
-    if args.dataset == 'modelnet':
+    # Modelnet
+    if args.task == 'classification':
         transform.append(T.SamplePoints(args.num_pts))
 
-    # if args.is_randRotY:
-    #     transform.append(T.RandomRotate(180, axis=1))
     transform = T.Compose(transform)
     return pre_transform, transform
 

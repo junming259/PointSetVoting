@@ -243,22 +243,8 @@ def evaluate(args, loader, save_dir):
                 np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
     
             if args.task == 'completion':
-                # # save key points for visualization
-                # key_pos = model.module.encoder.new_pos.view(args.bsize, -1, 3)
-                # key_pos = key_pos.cpu().detach().numpy()[0]
-                # np.save(os.path.join(save_dir, 'key_pos_{}'.format(j)), key_pos)
-    
                 results.append(loss)
                 pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-
-                # if args.dataset == 'completion3D':
-                    # # use the label(complete point clouds) for testing
-                    # results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
-                    # pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-                # else:
-                    # # no label(complete point clouds) provided
-                    # results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
-                    # pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
     
                 categories.append(category.to(torch.device('cpu')))
                 pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
@@ -313,7 +299,7 @@ def evaluate(args, loader, save_dir):
 def load_dataset(args):
 
     # load ShapeNet dataset
-    if args.dataset == 'shapenet':
+    if args.task == 'segmentation':
         pre_transform, transform = augment_transforms(args)
 
         categories = args.categories.split(',')
@@ -327,7 +313,7 @@ def load_dataset(args):
                                      num_workers=6, drop_last=True)
 
     # load ModelNet dataset
-    if args.dataset == 'modelnet':
+    elif args.task == 'classification':
         pre_transform, transform = augment_transforms(args)
 
         train_dataset = ModelNet('../data_root/ModelNet40', name='40', train=True,
@@ -340,7 +326,7 @@ def load_dataset(args):
                                      num_workers=6, drop_last=True)
 
     # load completion3D dataset
-    if args.dataset == 'completion3D':
+    elif args.task == 'completion':
         pre_transform, transform = augment_transforms(args)
 
         categories = args.categories.split(',')
@@ -398,8 +384,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default='model',
                         help="model name")
-    parser.add_argument("--dataset", type=str, choices=['shapenet', 'modelnet', 'completion3D', 'scanobjectnn'],
-                        help="shapenet or modelnet or completion3D")
     parser.add_argument("--task", type=str, choices=['completion', 'classification', 'segmentation'],
                         help=' '.join([
                             'completion: point clouds completion',
@@ -438,15 +422,12 @@ if __name__ == '__main__':
                         help="flag for simulating partial point clouds during test.")
     parser.add_argument("--norm", type=str, choices=['scale', 'bbox', 'sphere', 'sphere_wo_center'],
                         help="flag for normalization")
-    parser.add_argument("--is_randRotY", action='store_true',
-                        help="flag for random rotation along Y axis")
     parser.add_argument("--eval", action='store_true',
                         help="flag for doing evaluation")
     parser.add_argument("--checkpoint", type=str,
                         help="directory which contains pretrained model (.pth)")
 
     args = parser.parse_args()
-    assert args.dataset in ['shapenet', 'modelnet', 'completion3D']
     assert args.task in ['completion', 'classification', 'segmentation']
 
     # construct data loader
