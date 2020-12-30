@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import os
+import time
 import shutil
 import argparse
 import torch.nn.functional as F
@@ -9,14 +10,13 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from utils.models import Model
-from utils.model_utils import augment_transforms, get_lr, chamfer_loss, simulate_partial_point_clouds
+from utils.model_utils import augment_transforms, get_lr, simulate_partial_point_clouds
 from utils.class_completion3D import completion3D_class
 from torch.optim.lr_scheduler import StepLR
 from torchvision import transforms
 from torch_geometric.datasets import ShapeNet, ModelNet
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
-from torch_geometric.nn import PointConv, fps, radius
 from torch_geometric.utils import intersection_and_union as i_and_u
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -56,18 +56,6 @@ def train_one_epoch(args, loader, optimizer, logger, epoch):
         elif args.task == 'segmentation':
             loss_summary['loss_seg'] = loss
 
-        # if args.task == 'completion':
-            # loss_summary['loss_chamfer'] = chamfer_loss(pred, pos.view(-1, args.num_pts, 3)).mean()
-            # loss = loss_summary['loss_chamfer']
-        # elif args.task == 'classification':
-            # loss_summary['loss_cls'] = F.nll_loss(pred, label)
-            # loss = loss_summary['loss_cls']
-        # elif args.task == 'segmentation':
-            # loss_summary['loss_seg'] = F.nll_loss(pred, label)
-            # loss = loss_summary['loss_seg']
-        # else:
-            # assert False
-
         loss.backward()
         optimizer.step()
 
@@ -99,22 +87,16 @@ def test_one_epoch(args, loader, logger, epoch):
 
         # inference
         with torch.no_grad():
-            pred, loss = model(None, pos_observed, batch_observed, category, label)
+            pred, loss = model(None, pos_observed, batch_observed, category, label_observed)
 
         if args.task == 'completion':
             results.append(loss)
-            # if args.dataset == 'completion3D':
-                # # use the label(complete point clouds) for testing
-                # results.append(chamfer_loss(pred, label.view(-1, args.num_pts, 3)))
-            # else:
-                # # no label(complete point clouds) provided
-                # results.append(chamfer_loss(pred, pos.view(-1, args.num_pts, 3)))
 
-        if args.task == 'classification':
+        elif args.task == 'classification':
             pred = pred.max(1)[1]
             results.append(pred.eq(label).float())
 
-        if args.task == 'segmentation':
+        elif args.task == 'segmentation':
             pred = pred.max(1)[1]
             i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
             intersections.append(i.to(torch.device('cpu')))
@@ -127,12 +109,12 @@ def test_one_epoch(args, loader, logger, epoch):
         print('Epoch: {:03d}, Test Chamfer: {:.4f}'.format(epoch, results))
         results = -results
 
-    if args.task == 'classification':
+    elif args.task == 'classification':
         results = torch.cat(results, dim=0).mean().item()
         logger.add_scalar('test_acc', results, epoch)
         print('Epoch: {:03d}, Test Acc: {:.4f}'.format(epoch, results))
 
-    if args.task == 'segmentation':
+    elif args.task == 'segmentation':
         category = torch.cat(categories, dim=0)
         intersection = torch.cat(intersections, dim=0)
         union = torch.cat(unions, dim=0)
@@ -149,6 +131,7 @@ def test_one_epoch(args, loader, logger, epoch):
         results = torch.tensor(ious).mean().item()
         logger.add_scalar('test_mIoU', results, epoch)
         print('Epoch: {:03d}, Test mIoU: {:.4f}'.format(epoch, results))
+
     return results
 
 
@@ -204,7 +187,7 @@ def evaluate(args, loader, save_dir):
                 pos_observed, batch_observed, label_observed = pos, batch, label
     
             with torch.no_grad():
-                pred, loss = model(None, pos_observed, batch_observed, category, label)
+                pred, loss = model(None, pos_observed, batch_observed, category, label_observed)
                 if args.task == 'completion':
                     # sampling in the latent space to generate diverse prediction
                     latent = model.module.optimal_z[0, :].view(1, -1)
@@ -213,36 +196,28 @@ def evaluate(args, loader, save_dir):
                     random_latent = (random_latent + latent) / 2
                     pred_diverse = model.module.generate_pc_from_latent(random_latent)
     
-                    # for i in range(16):
-                    #     # latent = model.module.optimal_z[0, :].view(1, -1)
-                    #     # idx = np.random.choice(args.num_vote_test, 1, False)
-                    #     # random_latent = model.module.contrib_mean[0, idx, :].view(1, -1)
-                    #     # random_latent = (random_latent + latent) / 2
-                    #
-                    #     random_latent = model.module.contrib_mean[0, i, :].view(1, -1)
-                    #     pred_diverse_tmp = model.module.generate_pc_from_latent(random_latent)
-                    #     pred_diverse_tmp = pred_diverse_tmp.cpu().detach().numpy()[0]
-                    #     np.save(os.path.join(save_dir, 'pred_diverse_{}_{}'.format(j, i)), pred_diverse_tmp)
     
             if args.task == 'classification':
                 pred = pred.max(1)[1]
                 results.append(pred.eq(label).float())
     
-            if args.task == 'segmentation':
+            elif args.task == 'segmentation':
                 pred = pred.max(1)[1]
                 i, u = i_and_u(pred, label_observed, loader.dataset.num_classes, batch_observed)
                 intersections.append(i.to(torch.device('cpu')))
                 unions.append(u.to(torch.device('cpu')))
                 categories.append(category.to(torch.device('cpu')))
     
+                pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
                 pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
                 pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
-                label_observed = label_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
-                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos_observed)
+                label = label.cpu().detach().numpy().reshape(-1, args.num_pts)[0]
+                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+                np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
                 np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-                np.save(os.path.join(save_dir, 'label_{}'.format(j)), label_observed)
-    
-            if args.task == 'completion':
+                np.save(os.path.join(save_dir, 'label_{}'.format(j)), label)
+
+            elif args.task == 'completion':
                 results.append(loss)
                 pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
     
@@ -269,11 +244,11 @@ def evaluate(args, loader, save_dir):
         # results = torch.cat(results, dim=0).mean().item()
         # print('Test Chamfer: {:.4f}'.format(results))
 
-    if args.task == 'classification':
+    elif args.task == 'classification':
         results = torch.cat(results, dim=0).mean().item()
         print('Test Acc: {:.4f}'.format(results))
 
-    if args.task == 'segmentation':
+    elif args.task == 'segmentation':
         category = torch.cat(categories, dim=0)
         intersection = torch.cat(intersections, dim=0)
         union = torch.cat(unions, dim=0)
@@ -309,7 +284,7 @@ def load_dataset(args):
                                 pre_transform=pre_transform, transform=T.FixedPoints(args.num_pts))
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=6, drop_last=True)
-        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
                                      num_workers=6, drop_last=True)
 
     # load ModelNet dataset
@@ -322,7 +297,7 @@ def load_dataset(args):
                                  pre_transform=pre_transform, transform=T.SamplePoints(args.num_pts))
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
                                       num_workers=6, drop_last=True)
-        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=True,
+        test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
                                      num_workers=6, drop_last=True)
 
     # load completion3D dataset
@@ -335,9 +310,9 @@ def load_dataset(args):
         test_dataset = completion3D_class('../data_root/completion3D', categories, split='val',
                             include_normals=False, pre_transform=pre_transform, transform=transform)
         train_dataloader = DataLoader(train_dataset, batch_size=args.bsize, shuffle=True,
-                                      num_workers=8, drop_last=True)
+                                      num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
-                                     num_workers=8, drop_last=True)
+                                     num_workers=6, drop_last=True)
 
     return train_dataloader, test_dataloader
 
@@ -357,6 +332,9 @@ def check_overwrite(model_name):
             shutil.rmtree(check_dir)
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)
+
+        # waiting for updating of tensorboard
+        time.sleep(5)
 
     # create directory
     os.makedirs(check_dir)
@@ -386,7 +364,7 @@ if __name__ == '__main__':
                         help="model name")
     parser.add_argument("--task", type=str, choices=['completion', 'classification', 'segmentation'],
                         help=' '.join([
-                            'completion: point clouds completion',
+                            'completion: point cloud completion on Completion3D',
                             'classification: shape classification on ModelNet40',
                             'segmentation: part segmentation on ShapeNet'
                         ]))
@@ -395,7 +373,7 @@ if __name__ == '__main__':
     parser.add_argument("--categories", default='Chair',
                         help="point clouds categories, string or [string]. For ShapeNet: Airplane, Bag, \
                         Cap, Car, Chair, Earphone, Guitar, Knife, Lamp, Laptop, Motorbike, Mug, Pistol, \
-                        Rocket, Skateboard, Table; For Completion3D: plane;cabinet;car;chair;lamp;couch;table;watercraft")
+                        Rocket, Skateboard, Table; For Completion3D: plane,cabinet,car,chair,lamp,couch,table,watercraft")
     parser.add_argument("--num_pts", type=int,
                         help="the number of input points")
     parser.add_argument("--num_pts_observed", type=int,
@@ -453,13 +431,14 @@ if __name__ == '__main__':
 
     # evaluation
     if args.eval:
-        model_path = os.path.join(args.checkpoint, 'model.pth')
+        model_path = os.path.join(args.checkpoint)
         if not os.path.isfile(model_path):
             raise ValueError('{} does not exist. Please provide a valid path for pretrained model!'.format(model_path))
         model.load_state_dict(torch.load(model_path))
         print('Load model successfully from: {}'.format(args.checkpoint))
 
-        save_dir = os.path.join(args.checkpoint, 'eval_sample_results')
+        path, _ = os.path.split(args.checkpoint)
+        save_dir = os.path.join(path, 'eval_sample_results')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         evaluate(args=args, loader=test_dataloader, save_dir=save_dir)

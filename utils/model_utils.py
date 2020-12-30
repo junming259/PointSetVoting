@@ -27,9 +27,6 @@ def simulate_partial_point_clouds(data, npts, task):
     """
     pos, batch, label = data.pos, data.batch, data.y
 
-    # noise = torch.randn_like(pos)*0.08
-    # pos = pos + noise
-
     bsize = batch.max() + 1
     pos = pos.view(bsize, -1, 3)
     batch = batch.view(bsize, -1)
