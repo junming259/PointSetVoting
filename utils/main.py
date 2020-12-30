@@ -171,7 +171,7 @@ def evaluate(args, loader, save_dir):
         categories_summary = {k:[] for k in loader.dataset.idx2cat.keys()}
         idx2cat = loader.dataset.idx2cat
 
-    for _ in range(10):
+    for _ in range(1):
         for j, data in enumerate(loader, 0):
             data = data.to(device)
             pos, batch, label = data.pos, data.batch, data.y
@@ -208,28 +208,30 @@ def evaluate(args, loader, save_dir):
                 unions.append(u.to(torch.device('cpu')))
                 categories.append(category.to(torch.device('cpu')))
     
-                pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-                pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-                pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
-                label = label.cpu().detach().numpy().reshape(-1, args.num_pts)[0]
-                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-                np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-                np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-                np.save(os.path.join(save_dir, 'label_{}'.format(j)), label)
+                if args.save:
+                    pos = pos.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+                    pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+                    pred = pred.cpu().detach().numpy().reshape(-1, args.num_pts_observed)[0]
+                    label = label.cpu().detach().numpy().reshape(-1, args.num_pts)[0]
+                    np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+                    np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+                    np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+                    np.save(os.path.join(save_dir, 'label_{}'.format(j)), label)
 
             elif args.task == 'completion':
                 results.append(loss)
-                pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
-    
                 categories.append(category.to(torch.device('cpu')))
-                pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
-                pred = pred.cpu().detach().numpy()[0]
-                pred_diverse = pred_diverse.cpu().detach().numpy()[0]
-                np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
-                np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
-                np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
-                np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
-    
+
+                if args.save:
+                    pos = label.cpu().detach().numpy().reshape(-1, args.num_pts, 3)[0]
+                    pos_observed = pos_observed.cpu().detach().numpy().reshape(-1, args.num_pts_observed, 3)[0]
+                    pred = pred.cpu().detach().numpy()[0]
+                    pred_diverse = pred_diverse.cpu().detach().numpy()[0]
+                    np.save(os.path.join(save_dir, 'pos_{}'.format(j)), pos)
+                    np.save(os.path.join(save_dir, 'pos_observed_{}'.format(j)), pos_observed)
+                    np.save(os.path.join(save_dir, 'pred_{}'.format(j)), pred)
+                    np.save(os.path.join(save_dir, 'pred_diverse_{}'.format(j)), pred_diverse)
+        
     if args.task == 'completion':
         results = torch.cat(results, dim=0)
         category = torch.cat(categories, dim=0)
@@ -286,6 +288,7 @@ def load_dataset(args):
                                       num_workers=6, drop_last=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bsize, shuffle=False,
                                      num_workers=6, drop_last=True)
+
 
     # load ModelNet dataset
     elif args.task == 'classification':
@@ -402,6 +405,8 @@ if __name__ == '__main__':
                         help="flag for normalization")
     parser.add_argument("--eval", action='store_true',
                         help="flag for doing evaluation")
+    parser.add_argument("--save", action='store_true',
+                        help="flag for writing prediction results")
     parser.add_argument("--checkpoint", type=str,
                         help="directory which contains pretrained model (.pth)")
 
@@ -435,7 +440,7 @@ if __name__ == '__main__':
         if not os.path.isfile(model_path):
             raise ValueError('{} does not exist. Please provide a valid path for pretrained model!'.format(model_path))
         model.load_state_dict(torch.load(model_path))
-        print('Load model successfully from: {}'.format(args.checkpoint))
+        print('Successfully load model from: {}'.format(args.checkpoint))
 
         path, _ = os.path.split(args.checkpoint)
         save_dir = os.path.join(path, 'eval_sample_results')
