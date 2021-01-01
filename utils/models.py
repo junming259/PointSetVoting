@@ -8,16 +8,16 @@ from .model_utils import mlp, create_batch_one_hot_category, chamfer_loss
 
 class Model(torch.nn.Module):
     """
-    Point clouds completion model.
-
     Arguments:
         radius: float, radius for generating sub point clouds
         bottleneck: int, the size of bottleneck
-        ratio_train: float, sampling ratio in further points sampling (FPS) during training
-        ratio_test: float, sampling ratio in FPS during test
+        num_pts: int, the number of points in a complete point cloud
+        num_pts_observed: int, the number of points a partial point cloud
         num_vote_train: int, the number of votes during training
         num_contrib_vote_train: int, the maximum number of selected votes during training
         num_vote_test: int, the number of votes during test
+        is_vote: bool, enable voting strategy
+        task: string, [segmentation, classification, completion]
     """
 
     def __init__(
@@ -117,8 +117,8 @@ class Model(torch.nn.Module):
         ):
         """
         During training, random feature selection is adapted. Only a portion of
-        features generated from local point clouds will be considered for optimal
-        latent feature computation. During test, all generated features will be
+        features generated from local point clouds are considered for optimal
+        latent feature computation. During testing, all generated features will be
         contributed to calculate the optimal latent feature.
 
         Arguments:
@@ -143,12 +143,6 @@ class Model(torch.nn.Module):
             idx = np.arange(num_vote)
         new_mean = mean[:, idx, :]
         new_std = std[:, idx, :]
-
-        # build a mapping
-        # source_idx = torch.arange(mean.size(0)*mean.size(1))
-        # target_idx = torch.arange(new_mean.size(0)*new_mean.size(1))
-        # source_idx = source_idx.view(-1, num_vote)[:, idx].view(-1)
-        # mapping = dict(zip(source_idx.numpy(), target_idx.numpy()))
 
         return new_mean, new_std
 
@@ -224,7 +218,6 @@ class LatentModule(torch.nn.Module):
         # max pooling
         else:
             optimal_z = mean.max(dim=1)[0]
-            # optimal_z = mean.mean(dim=1)
         return optimal_z
 
 
@@ -344,17 +337,6 @@ class Classifier(torch.nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.fc3(x)
 
-        # x = self.relu(self.fc1(x))
-        # # x = F.dropout(x, p=0.5, training=self.training)
-        # x = self.relu(self.fc2(x))
-        # # x = F.dropout(x, p=0.5, training=self.training)
-        # x = self.fc3(x)
-
-        # x = self.relu(self.fc1(x))
-        # x = F.dropout(x, p=0.5, training=self.training)
-        # x = self.relu(self.fc2(x))
-        # x = F.dropout(x, p=0.5, training=self.training)
-        # x = self.fc3(x)
         return F.log_softmax(x, dim=-1)
 
 
@@ -381,7 +363,6 @@ class Segmentator(torch.nn.Module):
     def forward(self, latent, pos, one_hot_category):
 
         bsize = one_hot_category.size(0)
-        # pos = pos.view(bsize, -1, 3)
         pos = pos.view(bsize, -1, 64)
         latent = torch.unsqueeze(latent, 1)     # batch, 1, bottleneck
         latent = latent.repeat(1, pos.size(1), 1)
@@ -397,6 +378,4 @@ class Segmentator(torch.nn.Module):
         x = self.relu(self.bn3(self.fc3(x)))
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.fc4(x)
-        # print(x.size())
-        # assert False
         return F.log_softmax(x, dim=-1)

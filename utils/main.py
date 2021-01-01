@@ -243,8 +243,6 @@ def evaluate(args, loader, save_dir):
             total_chamfer_distance += chamfer_distance_cat
             print('{}: {:.7f}'.format(idx2cat[idx], chamfer_distance_cat))
         print('Mean Class Chamfer Distance: {:.6f}'.format(total_chamfer_distance/len(categories_summary)))
-        # results = torch.cat(results, dim=0).mean().item()
-        # print('Test Chamfer: {:.4f}'.format(results))
 
     elif args.task == 'classification':
         results = torch.cat(results, dim=0).mean().item()
@@ -265,12 +263,13 @@ def evaluate(args, loader, save_dir):
         for cat in range(len(loader.dataset.categories)):
             ious[cat] = torch.tensor(ious[cat]).mean().item()
         miou = torch.tensor(ious).mean().item()
-        print('Test mIoU: {:.4f}'.format(miou))
-
-    print('{} point clouds are evaluated.'.format(len(loader.dataset)))
+        print('Test class mIoU: {:.4f}'.format(miou))
 
     if args.task == 'completion' or args.task == 'segmentation':
         print('Sample results are saved to: {}'.format(save_dir))
+
+    print('{} point clouds are evaluated.'.format(len(loader.dataset)))
+
 
 
 def load_dataset(args):
