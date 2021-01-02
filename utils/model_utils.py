@@ -44,13 +44,6 @@ def simulate_partial_point_clouds(data, npts, task):
             if p.size(0) >= 300:
                 break
 
-        # mask = pos[i, :, 2]>0
-        # if torch.sum(mask) == 0:
-        #     mask = pos[i, :, 1]>-0.3
-        # if torch.sum(mask) == 0:
-        #     mask = pos[i, :, 1]>-0.5
-        # p = pos[i][mask]
-
         # ensure output contains fixed number of points
         idx = np.random.choice(p.size(0), npts, True)
         out_pos.append(pos[i][mask][idx])
@@ -111,13 +104,13 @@ class NormalizeSphere(object):
 
 def chamfer_loss(x, y):
     """
-    Compute chamfer distance for x and y. Note there are multiple version of chamfer
-    distance. The implemented chamfer distance is defined in:
+    Compute chamfer distance for x and y. For each point, it finds the nearest
+    neighbor in the other set and sums the Euclidean distances up. This is
+    different from:
 
-        https://arxiv.org/pdf/1612.00603.pdf.
+                    https://arxiv.org/pdf/1612.00603.pdf
 
-    It finds the nearest neighbor in the other set and computes their squared
-    distances which are summed over both target and ground-truth sets.
+    which computes the squared distances.
 
     Arguments:
         x: [bsize, m, 3]

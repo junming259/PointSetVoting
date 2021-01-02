@@ -12,17 +12,21 @@ and point cloud completion.
 
 
 ## Requirements
-- Python 3.5
-- Pytorch:1.4.0
+- Pytorch:1.5.0
 - [PyTorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 - CUDA 10.1
-- open3D (optinoal for visualization of points clouds completion)
+- Tensorboard (optinoal for visualization of training process)
+- open3D (optinoal for visualization of points clouds)
 
 
 ## Directory Structure
 
 ```
 .
+├── Docker
+│   ├── Dockerfile
+│   └── build.sh
+│
 ├── data_root
 │   ├── ModelNet40 (dataset)
 │   ├── ShapeNet_normal (dataset)
@@ -34,8 +38,8 @@ and point cloud completion.
 │   └── tensorboard.sh
 │
 ├── shapenet_seg
-│   ├── train_shapelnet.sh
-│   ├── evaluate_shapelnet.sh
+│   ├── train_shaplenet.sh
+│   ├── evaluate_shaplenet.sh
 │   └── tensorboard.sh
 │
 ├── completion3D
@@ -50,50 +54,59 @@ and point cloud completion.
 │   └── models.py
 │
 ├── visulaization
-│   ├── visualize_results_pro.py
-│   └── visualize_results.py
+│   ├── visualize_part_segmentation.py
+│   └── visualize_point_cloud_completion.py
 │
 ├── demo
 │   ├── point_cloud_completion_demo.py
 │   └── visualize.py
 │
-├── Dockerfile
-├── build.sh
 └── readme.md
 ```
 
 
-## Preparation
-The code is containterized. Build docker image:
-```
-$ bash build.sh
-```
+<!--## Preparation-->
+<!--If you prefer to running the code inside the Docker image. Build docker image:-->
+<!--```-->
+<!--cd Docker-->
+<!--bash build.sh-->
+<!--```-->
+
+<!--Build the Docker container:-->
+<!--```-->
+<!--cd ..-->
+<!--bash run.sh-->
+<!--```-->
 
 
 ## Shape Classification on ModelNet40
 The [ModelNet40](http://modelnet.cs.princeton.edu/ModelNet40.zip) (415M) dataset
-is used to perform shape classification task. To do point clouds classification,
-first download the ModelNet40 dataset and save it to `data_root/`.
+is used to perform shape classification task. We provide a [pretrained
+model](https://drive.google.com/file/d/13S74g6kGHF-SKGBMVDIE39lwxsOpIPg_/view?usp=sharing),
+whose accuracy on complete point clouds is 92.0% and accuracy on parital point
+clouds is 85.8%. Replace the `--checkpoint` flag in `evaluate_modelnet.sh` with
+the path of pretrained model.
 
-+ Train the model. Specify which GPU devices to be used, and change `--gpus `
-option in `train_modelnet.sh` to support multi-GPU training.
-```shell
-cd modelnet/
-bash train_modelnet.sh
-```
++ Enter `completion3D/`
+    ```shell
+    cd completion3D/ 
+    ```
 
-+ Visualize the training process by running Tensorboard.
-```shell
-cd modelnet/
-bash tensorboard.sh
-```
++ Train the model.
+    ```shell
+    ./train_modelnet.sh
+    ```
 
-+ Evaluate the trained model. Make sure parameters in `evaluate_modelnet.sh`
-is consistent with those in `train_modelnet.sh`.
-```shell
-cd modelnet/
-bash evaluate_modelnet.sh
-```
++ Visualize the training process in the Tensorboard.
+    ```shell
+    ./tensorboard.sh
+    ```
+
++ Evaluate the trained model. Make sure that parameters in the evaluation are
+  consistent with those during training.     
+    ```shell
+    ./evaluate_modelnet.sh
+    ```
 
 
 ## Part Segmentation on ShapeNet
@@ -101,10 +114,13 @@ bash evaluate_modelnet.sh
 ![](figures/part_segmentation.png)
 
 The [ShapeNet](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
-(674M) dataset is used during experiments of part segmentation task. Download
-dataset and save it to `data_root/`. You can set the `--categories` in `
-train_shapenet.sh` to specify which category or categories of object will be
-trained.
+(674M) dataset is used during experiments of part segmentation task. You can set
+the `--categories` in ` train_shapenet.sh` to specify which categories of
+objects will be trained.
+We provide a [pretrained model](https://drive.google.com/file/d/1nuOIWASjD2XFmtucpqvCio_3clz2-eyR/view?usp=sharing),
+whose class mean IoU (mIoU) on complete point clouds is 78.3% and mIoU on
+parital point clouds is 78.3%. Replace the `--checkpoint` flag in
+`evaluate_shapenet.sh` with the path of pretrained model.
 
 + Enter `shapenet_seg/`
     ```shell
@@ -176,27 +192,28 @@ categories of object will be trained.
   `pred_diverse_{idx}.npy` contains a diverse predicted completion point clouds.
     ```shell
     cd visulaization/
-    python3 visualize_point_clouds_completion.py --model_name {model_name} --idx {idx}
+    python3 visualize_point_cloud_completion.py --model_name {model_name} --idx {idx}
     ``` 
   ![](figures/visualization_point_clouds_completion.png).
 
 
 ## Demo 
 Here we provide a quick demo for point cloud completion. Specically, the
-[pretraiend model](https://drive.google.com/drive/folders/1P96RiD1ODsOTum6A0VLwKpcp4P94-tUM?usp=sharing)
-(pretrained only on cars from ShapeNet) is used to do point cloud completion on
-partial point clouds of vehicles generated from KITTI. The partial point cloud
+[pretraiend model](https://drive.google.com/file/d/1K0xNJZ5NjrJW7cwHIZyCZXSJj76I5T5r/view?usp=sharing)
+(pretrained only on cars from ShapeNet, and input cars are transformed to the
+center of the bounding boxes) is used to do point cloud completion on partial
+point clouds of vehicles generated from KITTI. The partial point cloud
 generation process can be found in
 [here](https://github.com/junming259/Partial_Point_Clouds_generatioin). Note
 that input point clouds should be in `.npy` format and in the shape of `(N, 3)`.
 For example, if your input point clouds are in the `demo/demo_inputs/*.npy` and
-pretrained model is in the `demo/model.pth`, run the following command:
+pretrained model is in the `demo/model_car.pth`, run the following command:
 
 ```shell
 cd demo/
 python3 point_cloud_completion_demo.py \
 --data_path demo_inputs \
---checkpoint model.pth \
+--checkpoint model_car.pth \
 ```
 
 After running, predicted compeltion results will be saved in the
@@ -204,7 +221,7 @@ After running, predicted compeltion results will be saved in the
 
 ```shell
 python3 visualize.py \
---data_path demo_results/${Input partial point clouds}.npy
+--data_path demo_inputs/{Input partial point clouds}.npy
 ```
 
 `--data_path` can be either set to a certain point cloud, such as
