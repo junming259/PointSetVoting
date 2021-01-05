@@ -9,7 +9,7 @@ a vote that corresponds to a distribution in the latent space, and the optimal
 latent feature is the one with the highest probability. We illustrates that this
 proposed method achieves state-of-the-art performance on shape classification,
 part segmentation and point cloud completion.
-[[paper](https://arxiv.org/pdf/2007.04537.pdf)]
+[[paper](https://arxiv.org/pdf/2007.04537v2.pdf)]
 [[suppl](https://junming259.github.io/data/suppl_pointsetvoting.pdf)]
 
 
@@ -220,7 +220,7 @@ If you find this project useful in your research, please consider cite:
 @article{pointsetvoting,
     title={Point Set Voting for Partial Point Cloud Analysis},
     author={Zhang, Junming and Chen, Weijia and Wang, Yuping and Vasudevan, Ram and Johnson-Roberson, Matthew},
-    journal={arXiv preprint arXiv:2007.04537},
-    year={2020}
+    journal={IEEE Robotics and Automation Letters},
+    year={2021}
 }
 ```
