@@ -2,13 +2,15 @@ __Point Set Voting for Partial Point Clouds Analysis__
 ===
 
 ![](figures/architectures.png)
-This paper proposes a general model for partial point clouds analysis wherein the
-latent feature encoding a complete point clouds is inferred by applying a local
-point set voting strategy. In particular, each local point set constructs a vote
-that corresponds to a distribution in the latent space, and the optimal latent
-feature is the one with the highest probability. We illustrates that this proposed
-method achieves state-of-the-art performance on shape classification, part segmentation
-and point cloud completion.
+This paper proposes a general model for partial point clouds analysis wherein
+the latent feature encoding a complete point clouds is inferred by applying a
+local point set voting strategy. In particular, each local point set constructs
+a vote that corresponds to a distribution in the latent space, and the optimal
+latent feature is the one with the highest probability. We illustrates that this
+proposed method achieves state-of-the-art performance on shape classification,
+part segmentation and point cloud completion.
+[[paper](https://arxiv.org/pdf/2007.04537.pdf)]
+[[suppl](https://junming259.github.io/data/suppl_pointsetvoting.pdf)]
 
 
 ## Requirements
@@ -23,10 +25,6 @@ and point cloud completion.
 
 ```
 .
-├── Docker
-│   ├── Dockerfile
-│   └── build.sh
-│
 ├── data_root
 │   ├── ModelNet40 (dataset)
 │   ├── ShapeNet_normal (dataset)
@@ -63,20 +61,6 @@ and point cloud completion.
 │
 └── readme.md
 ```
-
-
-<!--## Preparation-->
-<!--If you prefer to running the code inside the Docker image. Build docker image:-->
-<!--```-->
-<!--cd Docker-->
-<!--bash build.sh-->
-<!--```-->
-
-<!--Build the Docker container:-->
-<!--```-->
-<!--cd ..-->
-<!--bash run.sh-->
-<!--```-->
 
 
 ## Shape Classification on ModelNet40
